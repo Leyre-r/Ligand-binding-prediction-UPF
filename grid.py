@@ -2,7 +2,23 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 from Bio.PDB import PDBParser
-#para leer archivos de otra carpeta - import os...
+
+#para leer archivos de otra carpeta 
+"""
+import os
+
+lista_csvs = []
+for archivo in os.listdir("mis_pdbs/"):
+    if archivo.endswith(".pdb"):
+        # Aquí llamas a tu función que calcula features + target
+        df_proteina = procesar_pdb_y_generar_features(archivo)
+        lista_csvs.append(df_proteina)
+
+# Unir todos en un solo archivo maestro
+dataset_final = pd.concat(lista_csvs, ignore_index=True)
+dataset_final.to_csv("train_data_completo.csv", index=False)
+"""
+
 
 # 1. Instancias el parser
 parser = PDBParser(QUIET=True)
@@ -11,14 +27,35 @@ parser = PDBParser(QUIET=True)
 #"1OV9": Es el ID que le asigno a la estructura dentro de Python
 #"1OV9.pdb": Es la ruta del archivo físico que quiero leer / Habría que cambiarlo para que lea muchos ficheros
 try:
-    structure = parser.get_structure("1OV9", "1OV9.pdb")
+    structure = parser.get_structure("file", "files/1trn.pdb")
 except FileNotFoundError:
     print("Error: El archivo PDB no se encuentra.") 
 
+# 2. IDENTIFICAR COORDENADAS DEL LIGANDO (Tu nuevo bloque va aquí)
+ligand_coords = []
+for model in structure:
+    for chain in model:
+        for residue in chain:
+            # Filtro de seguridad para HETATM
+            if residue.get_id()[0].startswith('H_'):
+                res_name = residue.get_resname()
+                ignore = ['HOH', 'WAT', 'GOL', 'SO4', 'PO4', 'CL', 'MG', 'ZN', 'NA']
+                
+                # Solo ligandos con más de 5 átomos y que no estén en la lista negra
+                if res_name not in ignore and len(residue) > 5:
+                    for atom in residue:
+                        ligand_coords.append(atom.get_coord())
+
+ligand_coords = np.array(ligand_coords)
 
 # 3. Obtener coordenadas de todos los átomos del PDB
-coords_atoms = np.array([atom.get_coord() for atom in structure.get_atoms()])
+protein_atoms = [a for a in structure.get_atoms() if a.get_parent().get_id()[0] == ' ']
+coords_atoms = np.array([a.get_coord() for a in protein_atoms])
 tree = KDTree(coords_atoms)
+
+# IMPORTANTE: Esta es la lista que usaremos para recuperar la información química
+# Ahora el índice del KDTree coincidirá perfectamente con esta lista
+lista_atomos = protein_atoms
 
 # 4. Crear la rejilla (Grid)
 # Supongamos que x_range, y_range, z_range son tus límites
@@ -28,8 +65,6 @@ y_min = min(i[1] for i in coords_atoms)
 y_max = max(i[1] for i in coords_atoms)
 z_min = min(i[2] for i in coords_atoms)
 z_max = max(i[2] for i in coords_atoms)
-#print(x_min, x_max, y_min,y_max, z_min, z_max)
-#.T → Para que cada fila sea un punto [x, y, z].
 grid_points = np.mgrid[x_min:x_max:1, y_min:y_max:1, z_min:z_max:1].reshape(3, -1).T
 
 # 5. Encontrar los átomos que están más cerca de cada punto (y guardar las distancias)
@@ -51,9 +86,14 @@ radio_busqueda = 6.0
 
 # Esto devuelve una lista de listas: una lista de índices de átomos por cada punto
 indices_vecinos = tree.query_ball_point(sas_points, radio_busqueda)
-print(indices_vecinos)
-# Crea una lista con todos los objetos 'Atom' en el mismo orden que el KDTree
-lista_atomos = list(structure.get_atoms())
+
+# 7.2. ASIGNAR TARGETS (Comparando SAS_POINTS con LIGAND_COORDS)
+if len(ligand_coords) > 0:
+    ligand_tree = KDTree(ligand_coords)
+    distancias_al_ligando = ligand_tree.query_ball_point(sas_points, r=4.0)
+    target = [1 if len(vecinos) > 0 else 0 for vecinos in distancias_al_ligando]
+else:
+    target = [0] * len(sas_points)
 
 # 8. Diccionario de referencia (puedes ampliarlo con tablas de internet)
 PROPIEDADES = {
@@ -80,16 +120,14 @@ PROPIEDADES = {
 }
 
 
-data_rows = []
 
 # 9. Procesar los puntos de la superficie:
+data_rows = []
 for i, punto in enumerate(sas_points):
     # Recuperar vecinos en diferentes radios
     vecinos_6A = indices_vecinos[i] # Ya lo tienes de antes
     vecinos_10A = tree.query_ball_point(punto, 10.0)
     vecinos_3_5A = tree.query_ball_point(punto, 3.5)
-    
-    print(f"--- Procesando punto {i} en coordenadas {punto} ---")
     
     # Inicializamos las features para este punto
     f_aromatic = 0
@@ -101,8 +139,6 @@ for i, punto in enumerate(sas_points):
     for idx in vecinos_6A:
         atomo = lista_atomos[idx]
         res_name = atomo.get_parent().get_resname() # Esto da el aminoácido 
-        if res_name in ['HOH', 'WAT', 'H2O']: continue
-        print(res_name)
         dist = np.linalg.norm(punto - atomo.get_coord())
         peso = 1 / (dist + 0.5)       
 
@@ -114,7 +150,8 @@ for i, punto in enumerate(sas_points):
             f_bfactor += atomo.get_bfactor() * peso
 
             # Cálculo de Invalids (N y O)
-            if atomo.get_name().startswith(('N', 'O')):
+            atom_name = atomo.get_name().strip()
+            if atom_name.startswith(('N', 'O')):
                 f_invalids += 1 * peso
     
     # Guardar todos los resultados en una fila
@@ -132,4 +169,21 @@ for i, punto in enumerate(sas_points):
 
 # 10. Convertir a DataFrame y guardar
 df = pd.DataFrame(data_rows)
-df.to_csv("mi_dataset_proteina.csv", index=False)
+
+# 2. Añadimos la columna de etiquetas (0 o 1)
+# IMPORTANTE: Esto solo funciona si 'target' tiene el mismo número de filas que 'df'
+df['target'] = target  
+
+# 3. Guardamos el archivo final
+df.to_csv("datos_entrenamiento.csv", index=False)
+
+# Un pequeño truco para verificar que todo ha ido bien:
+n_positivos = sum(target)
+n_negativos = len(target) - n_positivos
+print(f"Procesamiento finalizado.")
+print(f"Puntos totales: {len(target)}")
+print(f"Puntos en el bolsillo (Target 1): {n_positivos}")
+print(f"Puntos fuera (Target 0): {n_negativos}")
+
+
+#NOTA: Al entrenar el modelo, recuerda usar un parámetro como class_weight='balanced' en tu Random Forest.
