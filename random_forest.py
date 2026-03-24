@@ -1,6 +1,5 @@
 #Data procesing
 import pandas as pd
-import numpy as np
 
 #Data Modelling
 import matplotlib.pyplot as plt
@@ -27,7 +26,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Usamos class_weight='balanced' porque hay muchísimos más 0s que 1s
 rf = RandomForestClassifier(
     class_weight='balanced', # ¡CRÍTICO para bioinformática!
-    n_jobs=-1,              # Usa todos los núcleos de tu procesador
+    n_jobs=2,              # NO Usa todos los núcleos deL procesador
     random_state=42
 )
 
@@ -42,9 +41,10 @@ param_grid = {
 grid_search = GridSearchCV(
     estimator=rf, 
     param_grid=param_grid, 
-    cv=5,           
+    cv=1,      #Mientras hago las primeras pruebas lo he bajado porque no arrancaba
     scoring='roc_auc',
-    n_jobs=-1
+    n_jobs=-1,
+    verbose=3
 )
 
 print("Iniciando GridSearchCV y Cross-Validation...")
@@ -78,6 +78,19 @@ print("\n--- Importancia de las Características ---")
 print(importancias)
 
 # 8. GUARDAR EL MEJOR MODELO
-joblib.dump(mejor_rf, 'modelo_p2rank_optimizado.pkl')
+joblib.dump(mejor_rf, 'modelo_rf_predictor.pkl')
+
+# --- VALIDACIÓN INDEPENDIENTE ---
+# Supongamos que has procesado una cohorte independiente y la tienes en 'independent_test.csv'
+#df_independent = pd.read_csv("independent_test.csv")
+#X_indep = df_independent.drop(columns=['target', 'pdb_id'], errors='ignore')
+#y_indep = df_independent['target']
+
+# Evaluar el modelo que entrenaste con PDBbind en esta nueva cohorte
+#y_pred_indep = mejor_rf.predict(X_indep)
+
+#print("\n--- RENDIMIENTO EN COHORTE INDEPENDIENTE ---")
+#print(classification_report(y_indep, y_pred_indep))
+#print(f"ROC AUC Independiente: {roc_auc_score(y_indep, mejor_rf.predict_proba(X_indep)[:, 1]):.2f}")
 
 
