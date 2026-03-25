@@ -65,7 +65,7 @@ def procesar_pdb(pdbfile):
     # Estos son tus puntos finales de la superficie
     sas_points = grid_points[mask]
 
-    print(f"De {len(grid_points)} puntos iniciales, {len(sas_points)} son superficie.")
+    #print(f"De {len(grid_points)} puntos iniciales, {len(sas_points)} son superficie.")
 
 
     # 7. Busco qué átomos están a menos de 6A.
@@ -164,10 +164,10 @@ def procesar_pdb(pdbfile):
     # Un pequeño truco para verificar que todo ha ido bien:
     n_positivos = sum(target)
     n_negativos = len(target) - n_positivos
-    print(f"Procesamiento finalizado.")
+    #print(f"Procesamiento finalizado.")
     print(f"Puntos totales: {len(target)}")
-    print(f"Puntos en el bolsillo (Target 1): {n_positivos}")
-    print(f"Puntos fuera (Target 0): {n_negativos}")
+    #print(f"Puntos en el bolsillo (Target 1): {n_positivos}")
+    #print(f"Puntos fuera (Target 0): {n_negativos}")
 
     # 3. Guardamos el archivo final
     return df

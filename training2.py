@@ -48,6 +48,9 @@ print(f"ROC-AUC: {roc_auc_score(y_test, y_proba):.4f}")
 #print(f"PR-AUC:  {average_precision_score(y_test, y_proba):.4f}")
 #print(f"MCC:     {matthews_corrcoef(y_test, y_pred):.4f}")
 
+joblib.dump(mejor_rf, 'modelo_rf_predictor.pkl')
+print("Modelo guardado.")
+
 # MATRIZ DE CONFUSIÓN
 cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
 plt.figure(figsize=(8, 6))
@@ -59,8 +62,7 @@ plt.tight_layout()
 plt.savefig('confusion_matrix.png', dpi=150)
 plt.show()
 
-joblib.dump(mejor_rf, 'modelo_rf_predictor.pkl')
-print("Modelo guardado.")
+
 
 # IMPORTANCIA DE FEATURES
 importancias = pd.Series(
