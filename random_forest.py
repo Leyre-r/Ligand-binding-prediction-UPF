@@ -22,28 +22,68 @@ y = df['target']
 # random_state asegura que si repites el código, los resultados sean iguales
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)  #random_state es el set.seed de Python
 
+
+X_train_dev, _, y_train_dev, _ = train_test_split(
+    X_train, y_train, 
+    test_size=0.8,          # nos quedamos con el 20%
+    random_state=42, 
+    stratify=y_train
+)
+
+rf = RandomForestClassifier(
+    class_weight='balanced',
+    random_state=42,
+    n_jobs=2        # solo aquí, eliminado del GridSearch para evitar conflicto
+)
+
+param_grid = {
+    'n_estimators': [100, 200],
+    'max_depth': [10, 20, None],
+    'min_samples_split': [2, 5],
+    'min_samples_leaf': [1, 2],    # añadido
+    'max_features': ['sqrt', 'log2']  # añadido
+}
+
+grid_search = GridSearchCV(
+    estimator=rf,
+    param_grid=param_grid,
+    cv=3,            # cv=3 para desarrollo, subirlo a 5 en producción
+    scoring='roc_auc',
+    verbose=2
+)
+
+print("FASE 1: Buscando hiperparámetros en submuestra...")
+grid_search.fit(X_train_dev, y_train_dev)
+print(f"Mejores parámetros: {grid_search.best_params_}")
+#Mejores parámetros: {'max_depth': 20, 'max_features': 'sqrt', 'min_samples_leaf': 2, 'min_samples_split': 5, 'n_estimators': 200}
+print(f"Mejor ROC-AUC en CV: {grid_search.best_score_:.4f}")
+
+"""
+
+
 # 4. CONFIGURACIÓN DEL MODELO
 # Usamos class_weight='balanced' porque hay muchísimos más 0s que 1s
 rf = RandomForestClassifier(
-    class_weight='balanced', # ¡CRÍTICO para bioinformática!
-    n_jobs=2,              # NO Usa todos los núcleos deL procesador
+    class_weight='balanced', 
     random_state=42
 )
 
 # Definimos el espacio de búsqueda
 param_grid = {
-    'n_estimators': [100, 200],
-    'max_depth': [10, 20, None],
-    'min_samples_split': [2, 5]
+    'n_estimators': 200,
+    'max_depth': 20,
+    'min_samples_split': 5,
+    'min_samples_leaf' : 2,
+    'max_features': 'sqrt'
 }
 
 # Añadimos el Cross-Validation=5
 grid_search = GridSearchCV(
     estimator=rf, 
     param_grid=param_grid, 
-    cv=1,      #Mientras hago las primeras pruebas lo he bajado porque no arrancaba
+    cv=3,      #Mientras hago las primeras pruebas lo he bajado porque no arrancaba
     scoring='roc_auc',
-    n_jobs=-1,
+    n_jobs=2,
     verbose=3
 )
 
@@ -79,6 +119,8 @@ print(importancias)
 
 # 8. GUARDAR EL MEJOR MODELO
 joblib.dump(mejor_rf, 'modelo_rf_predictor.pkl')
+
+"""
 
 # --- VALIDACIÓN INDEPENDIENTE ---
 # Supongamos que has procesado una cohorte independiente y la tienes en 'independent_test.csv'
