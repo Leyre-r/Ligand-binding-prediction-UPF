@@ -43,11 +43,11 @@ for line in clusters_text.splitlines():
         seleccionados.append(random.choice(pdbs_cluster))
 
 seleccionados = list(dict.fromkeys(seleccionados))
-subset_50 = seleccionados[:50]
+subset_70 = seleccionados[:70]
 
 import pandas as pd
 
-df = pd.DataFrame(subset_50, columns=["pdb_id"])
+df = pd.DataFrame(subset_70, columns=["pdb_id"])
 df.to_csv("pdb_ids_filtrados.csv", index=False)
 
 print("IDs guardados en pdb_ids_filtrados.csv")
