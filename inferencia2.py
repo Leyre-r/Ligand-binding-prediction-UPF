@@ -27,41 +27,53 @@ import os
 # ─────────────────────────────────────────────
 
 PROPIEDADES = {
-    'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0},
-    'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1},
-    'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-    'ASP': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-    'CYS': {'hydro': 2.5,  'aromatic': 0, 'polar': 1},
-    'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-    'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-    'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0},
-    'HIS': {'hydro': -3.2, 'aromatic': 1, 'polar': 1},
-    'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0},
-    'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0},
-    'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1},
-    'MET': {'hydro': 1.9,  'aromatic': 0, 'polar': 0},
-    'PHE': {'hydro': 2.8,  'aromatic': 1, 'polar': 0},
-    'PRO': {'hydro': -1.6, 'aromatic': 0, 'polar': 0},
-    'SER': {'hydro': -0.8, 'aromatic': 0, 'polar': 1},
-    'THR': {'hydro': -0.7, 'aromatic': 0, 'polar': 1},
-    'TRP': {'hydro': -0.9, 'aromatic': 1, 'polar': 1},
-    'TYR': {'hydro': -1.3, 'aromatic': 1, 'polar': 1},
-    'VAL': {'hydro': 4.2,  'aromatic': 0, 'polar': 0}
-}
-
+    'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
+    'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1, 'charge': 1},
+    'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
+    'ASP': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
+    'CYS': {'hydro': 2.5,  'aromatic': 0, 'polar': 1, 'charge': 0},
+    'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
+    'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
+    'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0, 'charge': 0},
+    'HIS': {'hydro': -3.2, 'aromatic': 1, 'polar': 1, 'charge': 0.5},
+    'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0, 'charge': 0},
+    'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
+    'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1, 'charge': 1},
+    'MET': {'hydro': 1.9,  'aromatic': 0, 'polar': 0, 'charge': 0},
+    'PHE': {'hydro': 2.8,  'aromatic': 1, 'polar': 0, 'charge': 0},
+    'PRO': {'hydro': -1.6, 'aromatic': 0, 'polar': 0, 'charge': 0},
+    'SER': {'hydro': -0.8, 'aromatic': 0, 'polar': 1, 'charge': 0},
+    'THR': {'hydro': -0.7, 'aromatic': 0, 'polar': 1, 'charge': 0},
+    'TRP': {'hydro': -0.9, 'aromatic': 1, 'polar': 1, 'charge': 0},
+    'TYR': {'hydro': -1.3, 'aromatic': 1, 'polar': 1, 'charge': 0},
+    'VAL': {'hydro': 4.2,  'aromatic': 0, 'polar': 0, 'charge': 0}
+    }
 
 def calcular_features(pdbfile):
     """
-    Replica exactamente el pipeline de grid.py pero SIN calcular targets
-    (no hay ligando en el PDB de predicción).
-    Devuelve (df_features, sas_points, lista_atomos, structure)
+    Generates a dataset that contains the structural and physicochemical descriptors calculated from a PDB file.
+
+    It calculates the Solvent Accesible Surface (SAS) using a grid-based approach and characterizes each surface point by projecting the
+    properties of the nearby atoms (hydrophobicity, charge, etc.). Unlike the training version, this function returns the structural 
+    objects (tree, atoms) needed for posterior residue mapping and visualization.
+
+    Args:
+        pdbfile (str): Path to the PDB file.
+    Returns:
+        tuple: A tuple containing the following elements:
+            - pandas.DataFrame ('df'): Dataset where each row is a SAS point with its descriptors (columns).
+            - numpy.ndarray ('sas_points'): Grid coordinates of the generated SAS points.
+            - list ('lista_atomos'): List of Bio.PDB.Atom objects used for the calculation. 
+            - Bio.PDB.Structure.Structure ('structure'): The full protein structure object.
+            - scipy.spatial.KDtree ('tree'): Spatial index of protein atoms for fast neighbor search. 
+        None: If an error occurred during PDB parsing, returns (None, None, None, None, None).
     """
     parser = PDBParser(QUIET=True)
     try:
         structure = parser.get_structure("proteina", pdbfile)
     except Exception as e:
         print(f"Error cargando {pdbfile}: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
     # Átomos de la proteína (solo ATOM, no HETATM)
     protein_atoms = [a for a in structure.get_atoms()
@@ -83,11 +95,10 @@ def calcular_features(pdbfile):
     print(f"Puntos SAS generados: {len(sas_points)}")
 
     # Features — idéntico a grid.py
-    indices_vecinos_6A = tree.query_ball_point(sas_points, 6.0)
     data_rows = []
 
     for i, punto in enumerate(sas_points):
-        vecinos_6A   = indices_vecinos_6A[i]
+        vecinos_6A   = tree.query_ball_point(punto, 6.0)
         vecinos_10A  = tree.query_ball_point(punto, 10.0)
         vecinos_3_5A = tree.query_ball_point(punto, 3.5)
 
@@ -95,6 +106,8 @@ def calcular_features(pdbfile):
         f_hydro    = 0
         f_bfactor  = 0
         f_invalids = 0
+        f_polar = 0    
+        f_charge = 0
 
         for idx in vecinos_6A:
             atomo    = lista_atomos[idx]
@@ -116,9 +129,11 @@ def calcular_features(pdbfile):
             'protrusion':    len(vecinos_10A),
             'atom0':         len(vecinos_3_5A),
             'bfactor':       f_bfactor / (len(vecinos_6A) + 1),
-            'apRawInvalids': f_invalids,
-            'vsAromatic':    f_aromatic,
+            'Invalids': f_invalids,
+            'Aromatic':    f_aromatic,
             'hydrophobic':   f_hydro,
+            'polar': f_polar,     
+            'net_charge': f_charge
         })
 
     df = pd.DataFrame(data_rows)
@@ -131,9 +146,20 @@ def calcular_features(pdbfile):
 
 def mapear_residuos(sas_points, predicciones, lista_atomos, tree, radio=4.0):
     """
-    Para cada punto SAS predicho como binding (1), busca los residuos
-    de la proteína dentro de `radio` Angstroms y los acumula en un set.
-    Devuelve lista de tuplas (chain_id, res_seq, res_name) ordenadas.
+    Identifies protein residues associated with the predicted binding site points.
+
+    For each SAS point classified as 'binding' (1), this function finds all nearby protein atoms within a specified radius 
+    and retrieves their parent residues. It uses a spatial index (KDTree) for efficient neighbor searching.
+
+    Args:
+        sas_points (numpy.ndarray): Grid coordinates (x,y,z) of the SAS points.
+        predicciones: Binary classification results (0 or 1) from the model.
+        lista_atomos (list): list of Bio.PDB.Atom objects corresponding to the KDTree.
+        tree (scipy.spatial.KDtree): spatial index of protein atoms. 
+        radio (float, optional): search radius in Angstroms. Defaults to 4.0.
+    Returns:
+        list of tuples ('residuos_sorted'): sorted list of unique residues identified, where each tuple contains 
+            (chain_id, res_seq, res_name).
     """
     puntos_binding = sas_points[predicciones == 1]
     print(f"Puntos predichos como binding site: {len(puntos_binding)}")
@@ -160,6 +186,18 @@ def mapear_residuos(sas_points, predicciones, lista_atomos, tree, radio=4.0):
 # ─────────────────────────────────────────────
 
 def guardar_residuos_txt(residuos, pdbfile, output="binding_site_residues.txt"):
+    """
+    Exports the predicted binding site residues to a formatted text file.
+
+    The created report includes the PDB filename, the total count of identified residues, and a table with the chain identifier, 
+    sequence number, and amino acid name for each residue.
+
+    Args:
+        residuos (list of tuples): List of identified residues, where each tuple contains (chain_id, res_id, res_name).
+        pdbfile (str): Path to the original PDB file.
+        output (str, optional): Name or path of the file where results will be saved. Defaults to "binding_site_residues.txt".
+    """
+
     pdb_name = os.path.basename(pdbfile)
     with open(output, 'w') as f:
         f.write(f"Binding site residues — {pdb_name}\n")
@@ -177,12 +215,19 @@ def guardar_residuos_txt(residuos, pdbfile, output="binding_site_residues.txt"):
 # ─────────────────────────────────────────────
 def guardar_pymol(residuos, pdbfile, output="visualization.pml"):
     """
-    Genera un script .pml que:
-    - Carga el PDB
-    - Colorea la proteína en gris
-    - Selecciona y colorea los residuos del binding site en rojo
-    - Muestra los residuos del sitio como sticks
+    Generates a PyMOL (.pml) script for 3D visualization of the predicted binding site.
+
+    The PyMOL script:
+    1. Loads the protein structure and sets a neutral gray cartoon representation.
+    2. Creates a specific selection of the predicted residues using chain and sequence IDs.
+    3. Displays the binding site residues as red sticks and a semi-transparent surface.
+    
+    Args:
+        residuos (list of tuples): List of identified residues, where each tuple contains (chain_id, res_id, res_name).
+        pdbfile (str): Path to the original PDB file.
+        output (str, optional): Name or path of the file where results will be saved. Defaults to "visualization.pml".
     """
+
     pdb_path = os.path.abspath(pdbfile)
     pdb_name = os.path.splitext(os.path.basename(pdbfile))[0]
  
@@ -224,10 +269,23 @@ def guardar_pymol(residuos, pdbfile, output="visualization.pml"):
  
 
 # ─────────────────────────────────────────────
-# 6. PIPELINE PRINCIPAL
+# 5. PIPELINE PRINCIPAL
 # ─────────────────────────────────────────────
 
 def predecir_binding_site(pdbfile, modelo_path):
+
+    """
+    
+    Args:
+        residuos (list of tuples): List of identified residues, where each tuple contains (chain_id, res_id, res_name).
+        pdbfile (str): Path to the original PDB file.
+        output (str, optional): Name or path of the file where results will be saved. Defaults to "visualization.pml".
+    
+    Returns: 
+        residuos
+        predicciones
+        probabilidades
+    """
 
     # Cargar modelo
     print(f"\nCargando modelo: {modelo_path}")

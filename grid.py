@@ -5,13 +5,28 @@ from Bio.PDB import PDBParser
 import sys
 
 def procesar_pdb(pdbfile):
+    """
+    Generates a dataset that contains the structural and physicochemical descriptors calculated from a PDB file.
+
+    It calculates the Solvent Accesible Surface (SAS) using a grid-based approach and characterizes each surface point by projecting the
+    properties of the nearby atoms (hydrophobicity, charge, etc.). If a ligand is present near those points, it assigns a binary 'target' 
+    label to them (1 for binding site, 0 otherwise), for the training of the model.
+   
+    Args:
+        pdbfile (str): Path to the PDB file.
+    Returns:
+        pandas.DataFrame: a DataFrame where each row represnts a SAS point and the columns include the calculated descriptors,
+            the 'target' label and the PDB identifier.
+        None: if a critical error occurred during the processing of the PDB file.
+
+    """
 
     # 1. Instancias el parser
     parser = PDBParser(QUIET=True)
 
     # 2. Cargamos la estructura
-    #"1OV9": Es el ID que le asigno a la estructura dentro de Python
-    #"1OV9.pdb": Es la ruta del archivo físico que quiero leer / Habría que cambiarlo para que lea muchos ficheros
+    #"file": Es el ID que le asigno a la estructura dentro de Python
+    #pdbfile: Es la ruta del archivo físico que quiero leer / Habría que cambiarlo para que lea muchos ficheros
     try:
         structure = parser.get_structure("file", pdbfile)
     except Exception as e: # Captura cualquier error de lectura - se podría hacer más específico
@@ -67,14 +82,7 @@ def procesar_pdb(pdbfile):
 
     #print(f"De {len(grid_points)} puntos iniciales, {len(sas_points)} son superficie.")
 
-
-    # 7. Busco qué átomos están a menos de 6A.
-    radio_busqueda = 6.0
-
-    # Esto devuelve una lista de listas: una lista de índices de átomos por cada punto
-    indices_vecinos = tree.query_ball_point(sas_points, radio_busqueda)
-
-    # 7.2. ASIGNAR TARGETS (Comparando SAS_POINTS con LIGAND_COORDS)
+    # 7. ASIGNAR TARGETS (Comparando SAS_POINTS con LIGAND_COORDS)
     if len(ligand_coords) > 0:
         ligand_tree = KDTree(ligand_coords)
         distancias_al_ligando = ligand_tree.query_ball_point(sas_points, r=4.0)
@@ -82,28 +90,28 @@ def procesar_pdb(pdbfile):
     else:
         target = [0] * len(sas_points)
 
-    # 8. Diccionario de referencia (puedes ampliarlo con tablas de internet)
+    # 8. Diccionario de referencia 
     PROPIEDADES = {
-        'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0},
-        'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1},
-        'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-        'ASP': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-        'CYS': {'hydro': 2.5,  'aromatic': 0, 'polar': 1},
-        'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-        'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1},
-        'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0},
-        'HIS': {'hydro': -3.2, 'aromatic': 1, 'polar': 1},
-        'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0},
-        'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0},
-        'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1},
-        'MET': {'hydro': 1.9,  'aromatic': 0, 'polar': 0},
-        'PHE': {'hydro': 2.8,  'aromatic': 1, 'polar': 0},
-        'PRO': {'hydro': -1.6, 'aromatic': 0, 'polar': 0},
-        'SER': {'hydro': -0.8, 'aromatic': 0, 'polar': 1},
-        'THR': {'hydro': -0.7, 'aromatic': 0, 'polar': 1},
-        'TRP': {'hydro': -0.9, 'aromatic': 1, 'polar': 1},
-        'TYR': {'hydro': -1.3, 'aromatic': 1, 'polar': 1},
-        'VAL': {'hydro': 4.2,  'aromatic': 0, 'polar': 0}
+        'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1, 'charge': 1},
+        'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'ASP': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
+        'CYS': {'hydro': 2.5,  'aromatic': 0, 'polar': 1, 'charge': 0},
+        'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
+        'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0, 'charge': 0},
+        'HIS': {'hydro': -3.2, 'aromatic': 1, 'polar': 1, 'charge': 0.5},
+        'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1, 'charge': 1},
+        'MET': {'hydro': 1.9,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'PHE': {'hydro': 2.8,  'aromatic': 1, 'polar': 0, 'charge': 0},
+        'PRO': {'hydro': -1.6, 'aromatic': 0, 'polar': 0, 'charge': 0},
+        'SER': {'hydro': -0.8, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'THR': {'hydro': -0.7, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'TRP': {'hydro': -0.9, 'aromatic': 1, 'polar': 1, 'charge': 0},
+        'TYR': {'hydro': -1.3, 'aromatic': 1, 'polar': 1, 'charge': 0},
+        'VAL': {'hydro': 4.2,  'aromatic': 0, 'polar': 0, 'charge': 0}
     }
 
 
@@ -112,7 +120,7 @@ def procesar_pdb(pdbfile):
     data_rows = []
     for i, punto in enumerate(sas_points):
         # Recuperar vecinos en diferentes radios
-        vecinos_6A = indices_vecinos[i] # Ya lo tienes de antes
+        vecinos_6A = tree.query_ball_point(punto, 6.0)
         vecinos_10A = tree.query_ball_point(punto, 10.0)
         vecinos_3_5A = tree.query_ball_point(punto, 3.5)
         
@@ -121,6 +129,8 @@ def procesar_pdb(pdbfile):
         f_hydro = 0
         f_bfactor = 0
         f_invalids = 0
+        f_polar = 0    
+        f_charge = 0
 
         # Para un punto concreto:
         for idx in vecinos_6A:
@@ -135,6 +145,8 @@ def procesar_pdb(pdbfile):
                 f_hydro += props['hydro'] * peso
                 f_aromatic += props['aromatic'] * peso
                 f_bfactor += atomo.get_bfactor() * peso
+                f_polar += props['polar'] * peso    
+                f_charge += props['charge'] * peso
 
                 # Cálculo de Invalids (N y O)
                 atom_name = atomo.get_name().strip()
@@ -146,9 +158,11 @@ def procesar_pdb(pdbfile):
             'protrusion': len(vecinos_10A),      # Neighbor Count
             'atom0': len(vecinos_3_5A),           # Presencia de átomos
             'bfactor': f_bfactor / (len(vecinos_6A) + 1),
-            'apRawInvalids': f_invalids,
-            'vsAromatic': f_aromatic,
+            'Invalids': f_invalids,
+            'Aromatic': f_aromatic,
             'hydrophobic': f_hydro,
+            'polar': f_polar,     
+            'net_charge': f_charge
         }
 
         data_rows.append(fila)
@@ -161,18 +175,9 @@ def procesar_pdb(pdbfile):
     df['target'] = target  
     df['pdb_id'] = pdbfile
 
-    # Un pequeño truco para verificar que todo ha ido bien:
-    n_positivos = sum(target)
-    n_negativos = len(target) - n_positivos
-    #print(f"Procesamiento finalizado.")
-    print(f"Puntos totales: {len(target)}")
-    #print(f"Puntos en el bolsillo (Target 1): {n_positivos}")
-    #print(f"Puntos fuera (Target 0): {n_negativos}")
-
+    
     # 3. Guardamos el archivo final
     return df
-
-#NOTA: Al entrenar el modelo, recuerda usar un parámetro como class_weight='balanced' en tu Random Forest.
 
 
 if __name__ == "__main__":
