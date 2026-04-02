@@ -11,13 +11,48 @@ Output:
             the 'target' label and the PDB identifier.
 """
 
+from html import parser
+
 import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 from Bio.PDB import PDBParser
+from rdkit import Chem 
 import sys
 
-def procesar_pdb(pdbfile):
+def cargar_ligando_sdf(sdf_path):
+    try:
+        mol = Chem.SDMolSupplier(sdf_path)[0]
+        if mol is None:
+            return None
+
+        conf = mol.GetConformer()
+        coords = []
+
+        for i in range(mol.GetNumAtoms()):
+            pos = conf.GetAtomPosition(i)
+            coords.append([pos.x, pos.y, pos.z])
+
+        return np.array(coords)
+
+    except Exception as e:
+        print(f"Error leyendo ligando {sdf_path}: {e}")
+        return None
+
+#def cargar_pocket_pdb(pocket_path):
+    #try:
+        #parser = PDBParser(QUIET=True)
+        #structure = parser.get_structure("pocket", pocket_path)
+
+        #coords = [atom.get_coord() for atom in structure.get_atoms()]
+        #return np.array(coords)
+
+    #except Exception as e:
+        #print(f"Error leyendo pocket {pocket_path}: {e}")
+        #return None
+    
+def procesar_sample(pdbfile, ligand_file): #pocket_file 
+#def procesar_pdb(pdbfile):
     """
     Generates a dataset that contains the structural and physicochemical descriptors calculated from a PDB file.
 
@@ -47,26 +82,39 @@ def procesar_pdb(pdbfile):
         return None 
 
     # 2. IDENTIFICAR COORDENADAS DEL LIGANDO (Tu nuevo bloque va aquí)
-    ligand_coords = []
-    for model in structure:
-        for chain in model:
-            for residue in chain:
-                # Filtro de seguridad para HETATM
-                if residue.get_id()[0].startswith('H_'):
-                    res_name = residue.get_resname()
-                    ignore = ['HOH', 'WAT', 'GOL', 'SO4', 'PO4', 'CL', 'MG', 'ZN', 'NA']
+    # ligand_coords = []
+    # for model in structure:
+    #     for chain in model:
+    #         for residue in chain:
+    #             # Filtro de seguridad para HETATM
+    #             if residue.get_id()[0].startswith('H_'):
+    #                 res_name = residue.get_resname()
+    #                 ignore = ['HOH', 'WAT', 'GOL', 'SO4', 'PO4', 'CL', 'MG', 'ZN', 'NA']
                     
-                    # Solo ligandos con más de 5 átomos y que no estén en "ignore"
-                    if res_name not in ignore and len(residue) > 5:
-                        for atom in residue:
-                            ligand_coords.append(atom.get_coord())
+    #                 # Solo ligandos con más de 5 átomos y que no estén en "ignore"
+    #                 if res_name not in ignore and len(residue) > 5:
+    #                     for atom in residue:
+    #                         ligand_coords.append(atom.get_coord())
 
-    ligand_coords = np.array(ligand_coords)
+    # ligand_coords = np.array(ligand_coords)
+
+    ligand_coords = cargar_ligando_sdf(ligand_file)
+
+    if ligand_coords is None:
+        ligand_coords = np.array([])
+
+    #Procesar las coordenadas del archivo de pocket
+    #pocket_coords = cargar_pocket_pdb(pocket_file)
+
+    #if pocket_coords is None:
+        #pocket_coords = np.array([])
 
     # 3. Obtener coordenadas de todos los átomos del PDB
     protein_atoms = [a for a in structure.get_atoms() if a.get_parent().get_id()[0] == ' ']
     coords_atoms = np.array([a.get_coord() for a in protein_atoms])
     tree = KDTree(coords_atoms)
+    #if len(pocket_coords) > 0:
+        #pocket_tree = KDTree(pocket_coords)
 
     # IMPORTANTE: Esta es la lista que usaremos para recuperar la información química
     # Ahora el índice del KDTree coincidirá perfectamente con esta lista
@@ -132,6 +180,13 @@ def procesar_pdb(pdbfile):
     # 9. Procesar los puntos de la superficie:
     data_rows = []
     for i, punto in enumerate(sas_points):
+        
+        #FEature adicional: distancia al pocket (si existe)
+        #if len(pocket_coords) > 0:
+            #dist_pocket = pocket_tree.query(punto)[0]
+        #else:
+            #dist_pocket = 999.0
+
         # Recuperar vecinos en diferentes radios
         vecinos_6A = tree.query_ball_point(punto, 6.0)
         vecinos_10A = tree.query_ball_point(punto, 10.0)
@@ -144,6 +199,22 @@ def procesar_pdb(pdbfile):
         f_invalids = 0
         f_polar = 0    
         f_charge = 0
+
+        density_6A = len(vecinos_6A)
+        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
+        hydro_norm = f_hydro / (len(vecinos_6A) + 1)
+        density_6A = len(vecinos_6A)
+
+        protrusion_ratio = len(vecinos_3_5A) / (density_6A + 1)
+        charge_norm = f_charge / (density_6A + 1)
+
+        if density_6A > 0:
+            bfactor_var = np.var([
+                lista_atomos[idx].get_bfactor()
+                for idx in vecinos_6A
+            ])
+        else:
+            bfactor_var = 0
 
         # Para un punto concreto:
         for idx in vecinos_6A:
@@ -175,7 +246,14 @@ def procesar_pdb(pdbfile):
             'Aromatic': f_aromatic,
             'hydrophobic': f_hydro,
             'polar': f_polar,     
-            'net_charge': f_charge
+            'net_charge': f_charge,
+            'density_6A': density_6A,
+            'ratio_density': ratio_density,
+            'hydro_norm': hydro_norm,
+            'protrusion_ratio': protrusion_ratio,
+            'charge_norm': charge_norm,
+            'bfactor_var': bfactor_var
+            #'dist_pocket': dist_pocket
         }
 
         data_rows.append(fila)
@@ -197,6 +275,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
     #Coger el archivo que queremos predecir desde la command line
         file = sys.argv[1]
-        procesar_pdb(file)
+        print("Usar procesar_sample desde otro script")
+        #procesar_pdb(file)
     else:
         print("Error: no file provided")
