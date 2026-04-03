@@ -11,42 +11,31 @@ Outputs:
     - visualization.pml             → script for PyMOL
 """
 
+import logging
 import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 from Bio.PDB import PDBParser
+from grid import PROPIEDADES
 import joblib
 import sys
 import os
 from sklearn.cluster import DBSCAN
 
+# Configuración inicial del log
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("inferencia.log"),
+        logging.StreamHandler()
+    ]
+)
 
 # ─────────────────────────────────────────────
 # 1. REPLICAR EXACTAMENTE EL CÁLCULO DE FEATURES DE grid.py
 # ─────────────────────────────────────────────
 
-PROPIEDADES = {
-    'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
-    'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1, 'charge': 1},
-    'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
-    'ASP': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
-    'CYS': {'hydro': 2.5,  'aromatic': 0, 'polar': 1, 'charge': 0},
-    'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
-    'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
-    'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0, 'charge': 0},
-    'HIS': {'hydro': -3.2, 'aromatic': 1, 'polar': 1, 'charge': 0.5},
-    'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0, 'charge': 0},
-    'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
-    'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1, 'charge': 1},
-    'MET': {'hydro': 1.9,  'aromatic': 0, 'polar': 0, 'charge': 0},
-    'PHE': {'hydro': 2.8,  'aromatic': 1, 'polar': 0, 'charge': 0},
-    'PRO': {'hydro': -1.6, 'aromatic': 0, 'polar': 0, 'charge': 0},
-    'SER': {'hydro': -0.8, 'aromatic': 0, 'polar': 1, 'charge': 0},
-    'THR': {'hydro': -0.7, 'aromatic': 0, 'polar': 1, 'charge': 0},
-    'TRP': {'hydro': -0.9, 'aromatic': 1, 'polar': 1, 'charge': 0},
-    'TYR': {'hydro': -1.3, 'aromatic': 1, 'polar': 1, 'charge': 0},
-    'VAL': {'hydro': 4.2,  'aromatic': 0, 'polar': 0, 'charge': 0}
-    }
 
 def calcular_features(pdbfile):
     """
@@ -70,103 +59,116 @@ def calcular_features(pdbfile):
     parser = PDBParser(QUIET=True)
     try:
         structure = parser.get_structure("proteina", pdbfile)
-    except Exception as e:
-        print(f"Error cargando {pdbfile}: {e}")
-        return None, None, None, None, None
+        # Verificación de que la estructura no está vacía
+        protein_atoms = [a for a in structure.get_atoms()
+                        if a.get_parent().get_id()[0] == ' ']
+        
+        if not protein_atoms:
+            raise ValueError("No protein atoms (ATOM) were found in the file.")
+        
+        coords_atoms  = np.array([a.get_coord() for a in protein_atoms])
+        lista_atomos  = protein_atoms
+        tree          = KDTree(coords_atoms)
 
-    # Átomos de la proteína (solo ATOM, no HETATM)
-    protein_atoms = [a for a in structure.get_atoms()
-                     if a.get_parent().get_id()[0] == ' ']
-    coords_atoms  = np.array([a.get_coord() for a in protein_atoms])
-    lista_atomos  = protein_atoms
-    tree          = KDTree(coords_atoms)
+        # Grid y puntos SAS — idéntico a grid.py
+        x_min, x_max = coords_atoms[:,0].min(), coords_atoms[:,0].max()
+        y_min, y_max = coords_atoms[:,1].min(), coords_atoms[:,1].max()
+        z_min, z_max = coords_atoms[:,2].min(), coords_atoms[:,2].max()
 
-    # Grid y puntos SAS — idéntico a grid.py
-    x_min, x_max = coords_atoms[:,0].min(), coords_atoms[:,0].max()
-    y_min, y_max = coords_atoms[:,1].min(), coords_atoms[:,1].max()
-    z_min, z_max = coords_atoms[:,2].min(), coords_atoms[:,2].max()
+        grid_points = np.mgrid[x_min:x_max:1,y_min:y_max:1,z_min:z_max:1].reshape(3, -1).T
 
-    grid_points = np.mgrid[x_min:x_max:1,y_min:y_max:1,z_min:z_max:1].reshape(3, -1).T
+        distancias, _ = tree.query(grid_points)
+        mask = (distancias > 2.8) & (distancias < 3.5)
+        sas_points = grid_points[mask]
+        print(f"Generated SAS points: {len(sas_points)}")
 
-    distancias, _ = tree.query(grid_points)
-    mask       = (distancias > 2.8) & (distancias < 3.5)
-    sas_points = grid_points[mask]
-    print(f"Puntos SAS generados: {len(sas_points)}")
+        if len(sas_points) == 0:
+            raise ValueError("No SAS points could be generated. Check the PDB structure.")
 
-    # Features — idéntico a grid.py
-    data_rows = []
+        # Features — idéntico a grid.py
+        data_rows = []
 
-    for i, punto in enumerate(sas_points):
+        for i, punto in enumerate(sas_points):
 
-        vecinos_6A = tree.query_ball_point(punto, 6.0)
-        vecinos_10A = tree.query_ball_point(punto, 10.0)
-        vecinos_3_5A = tree.query_ball_point(punto, 3.5)
+            vecinos_6A = tree.query_ball_point(punto, 6.0)
+            vecinos_10A = tree.query_ball_point(punto, 10.0)
+            #vecinos_3_5A = tree.query_ball_point(punto, 3.5)
 
-        density_6A = len(vecinos_6A)
+            density_6A = len(vecinos_6A)
 
-        f_aromatic = 0
-        f_hydro = 0
-        f_bfactor = 0
-        f_invalids = 0
-        f_polar = 0    
-        f_charge = 0
+            f_aromatic = 0
+            f_hydro = 0
+            f_bfactor = 0
+            f_invalids = 0
+            f_polar = 0    
+            f_charge = 0
 
-        for idx in vecinos_6A:
-            atomo = lista_atomos[idx]
-            res_name = atomo.get_parent().get_resname()
-            dist = np.linalg.norm(punto - atomo.get_coord())
-            peso = 1 / (dist + 0.5)
+            for idx in vecinos_6A:
+                atomo = lista_atomos[idx]
+                res_name = atomo.get_parent().get_resname()
+                dist = np.linalg.norm(punto - atomo.get_coord())
+                peso = 1 / (dist + 0.5)
 
-            if res_name in PROPIEDADES:
-                props = PROPIEDADES[res_name]
-                f_hydro += props['hydro'] * peso
-                f_aromatic += props['aromatic'] * peso
-                f_bfactor += atomo.get_bfactor() * peso
-                f_polar += props['polar'] * peso    
-                f_charge += props['charge'] * peso
+                if res_name in PROPIEDADES:
+                    props = PROPIEDADES[res_name]
+                    f_hydro += props['hydro'] * peso
+                    f_aromatic += props['aromatic'] * peso
+                    f_bfactor += atomo.get_bfactor() * peso
+                    f_polar += props['polar'] * peso    
+                    f_charge += props['charge'] * peso
 
-                atom_name = atomo.get_name().strip()
-                if atom_name.startswith(('N', 'O')):
-                    f_invalids += 1 * peso
+                    atom_name = atomo.get_name().strip()
+                    if atom_name.startswith(('N', 'O')):
+                        f_invalids += 1 * peso
 
-        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
+            ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
 
-        hydro_norm = f_hydro / (density_6A + 1)
-        charge_norm = f_charge / (density_6A + 1)
-        polar_norm = f_polar / (density_6A + 1)
-        bfactor_norm = f_bfactor / (density_6A + 1)
+            hydro_norm = f_hydro / (density_6A + 1)
+            charge_norm = f_charge / (density_6A + 1)
+            polar_norm = f_polar / (density_6A + 1)
+            bfactor_norm = f_bfactor / (density_6A + 1)
 
-        hydro_polar_ratio = f_hydro / (f_polar + 1)
+            hydro_polar_ratio = f_hydro / (f_polar + 1)
 
-        unique_residues = len(set([
-            lista_atomos[idx].get_parent().get_resname()
-            for idx in vecinos_6A
-        ]))
-
-        if density_6A > 0:
-            bfactor_var = np.var([
-                lista_atomos[idx].get_bfactor()
+            unique_residues = len(set([
+                lista_atomos[idx].get_parent().get_resname()
                 for idx in vecinos_6A
-            ])
-        else:
-            bfactor_var = 0
+            ]))
 
-        data_rows.append({
-            'protrusion': len(vecinos_10A),
-            'bfactor': bfactor_norm,
-            'Invalids': f_invalids,
-            'Aromatic': f_aromatic,
-            'hydrophobic': hydro_norm,
-            'polar': polar_norm,
-            'net_charge': charge_norm,
-            'ratio_density': ratio_density,
-            'bfactor_var': bfactor_var,
-            'hydro_polar_ratio': hydro_polar_ratio,
-            'unique_residues': unique_residues
-        })
+            if density_6A > 0:
+                bfactor_var = np.var([
+                    lista_atomos[idx].get_bfactor()
+                    for idx in vecinos_6A
+                ])
+            else:
+                bfactor_var = 0
 
-    df = pd.DataFrame(data_rows)
-    return df, sas_points, lista_atomos, structure, tree
+            data_rows.append({
+                'protrusion': len(vecinos_10A),
+                'bfactor': bfactor_norm,
+                'Invalids': f_invalids,
+                'Aromatic': f_aromatic,
+                'hydrophobic': hydro_norm,
+                'polar': polar_norm,
+                'net_charge': charge_norm,
+                'ratio_density': ratio_density,
+                'bfactor_var': bfactor_var,
+                'hydro_polar_ratio': hydro_polar_ratio,
+                'unique_residues': unique_residues
+            })
+
+        df = pd.DataFrame(data_rows)
+        return df, sas_points, lista_atomos, structure, tree
+
+    except FileNotFoundError:
+        logging.error(f"File not found: {pdbfile}")
+        return None, None, None, None, None
+    except ValueError as ve:
+        logging.error(f"Error in the data from {pdbfile}: {ve}")
+        return None, None, None, None, None
+    except Exception as e:
+        logging.error(f"Error at processing {pdbfile}: {str(e)}")
+        return None, None, None, None, None
 
 
 # ─────────────────────────────────────────────
@@ -321,97 +323,102 @@ def predecir_binding_site(pdbfile):
     """
 
     # Cargar modelo
-    print("\nCargando modelo: modelo_rf_predictor.pkl")
-    modelo = joblib.load("modelo_rf_predictor.pkl")
+    try:
+        # Cargar modelo
+        if not os.path.exists("modelo_rf_predictor.pkl"):
+            raise FileNotFoundError("File 'modelo_rf_predictor.pkl' doesn't exist in directory.")
+        
+        logging.info(f"Cargando modelo 'modelo_rf_predictor.pkl' y procesando: {pdbfile}")
+        print("\nCargando modelo: modelo_rf_predictor.pkl")
+        modelo = joblib.load("modelo_rf_predictor.pkl")
 
-    # Calcular features
-    print(f"\nCalculando features SAS para: {pdbfile}")
-    resultado = calcular_features(pdbfile)
-    if resultado[0] is None:
-        print("Error: no se pudieron calcular las features.")
-        return
-    df_features, sas_points, lista_atomos, structure, tree = resultado
+        # Calcular features
+        print(f"\nCalculando features SAS para: {pdbfile}")
+        resultado = calcular_features(pdbfile)
+        if resultado[0] is None:
+            print("Error: no se pudieron calcular las features.")
+            return
+        df_features, sas_points, lista_atomos, structure, tree = resultado
 
-    # Asegurarse de que las columnas estén en el mismo orden que en training
-    columnas_modelo = ['protrusion', 'bfactor', 'Invalids', 'Aromatic', 'hydrophobic', 'polar', 'net_charge', 'ratio_density', 'bfactor_var', 'hydro_polar_ratio', 'unique_residues']
-    X_pred = df_features[columnas_modelo]
+        # Asegurarse de que las columnas estén en el mismo orden que en training
+        columnas_modelo = ['protrusion', 'bfactor', 'Invalids', 'Aromatic', 'hydrophobic', 'polar', 'net_charge', 'ratio_density', 'bfactor_var', 'hydro_polar_ratio', 'unique_residues']
+        X_pred = df_features[columnas_modelo]
 
-    # Predecir
-    probabilidades = modelo.predict_proba(X_pred)[:, 1]
+        # Predecir
+        probabilidades = modelo.predict_proba(X_pred)[:, 1]
 
-    # Definimos el umbral (threshold)
-    umbral = 0.7
-    print(f"\nEjecutando predicción con umbral de confianza {umbral}...")
-    # Creamos las nuevas predicciones: 1 si prob >= 0.8, de lo contrario 0
-    predicciones = (probabilidades >= umbral).astype(int)
+        # Definimos el umbral (threshold)
+        umbral = 0.7
+        print(f"\nEjecutando predicción con umbral de confianza {umbral}...")
+        # Creamos las nuevas predicciones: 1 si prob >= 0.8, de lo contrario 0
+        predicciones = (probabilidades >= umbral).astype(int)
 
+    # Crear dataframe auxiliar con coords + pred
+        df_pred = pd.DataFrame({
+            'x': sas_points[:,0],
+            'y': sas_points[:,1],
+            'z': sas_points[:,2],
+            'pred': predicciones,
+            'proba': probabilidades
+        })
+
+    # Filtrar puntos positivos
+        positivos = df_pred[df_pred['pred'] == 1]
+        
+        if len(positivos) > 0:
+
+            coords = positivos[['x','y','z']].values
+
+            clustering = DBSCAN(eps=3.0, min_samples=10).fit(coords)
+            positivos = positivos.copy()
+            positivos['cluster'] = clustering.labels_
+
+            # Quitar ruido
+            positivos = positivos[positivos['cluster'] != -1]
+            # Seleccionar clusters grandes
+            cluster_sizes = positivos.groupby('cluster').size().sort_values(ascending=False)
+            top_clusters = cluster_sizes.head(3).index
+            positivos = positivos[positivos['cluster'].isin(top_clusters)]
+
+            print(f"Clusters detectados: {len(top_clusters)}")
+
+        # Crear nueva predicción filtrada
+            pred_filtrado = np.zeros(len(predicciones))
+
+        # Marcar solo los puntos de clusters buenos
+            indices_validos = positivos.index.to_numpy()
+            pred_filtrado[indices_validos] = 1
+            predicciones = pred_filtrado.astype(int)
+
+        else:
+            print("No hay puntos positivos para clustering")
+
+        n_binding = int(predicciones.sum())
+        print(f"Puntos totales evaluados: {len(predicciones)}")
+        print(f"Puntos predichos como binding site (1): {n_binding}")
+        print(f"Puntos predichos como no-binding  (0): {len(predicciones) - n_binding}")
+
+        # Mapear a residuos
+        print("\nMapeando puntos al binding site a residuos de la proteína...")
+        residuos = mapear_residuos(sas_points, predicciones, lista_atomos, tree)
+        print(f"Residuos únicos en el binding site: {len(residuos)}")
+
+        # Guardar outputs
+        pdb_base = os.path.splitext(os.path.basename(pdbfile))[0]
+        guardar_residuos_txt(residuos, pdbfile, output=f"{pdb_base}_binding_site_residues.txt")
+        guardar_pymol(residuos, pdbfile, output=f"{pdb_base}_visualization.pml")
+
+        print("\n¡Predicción completada!")
+        print(f"Archivos generados:")
+        print(f"  - {pdb_base}_binding_site_residues.txt")
+        print(f"  - {pdb_base}_visualization.pml")
+
+        logging.info(f"¡Predicción completada con éxito para {pdbfile}!")
+        return residuos, predicciones, probabilidades
     
-
-# Crear dataframe auxiliar con coords + pred
-    df_pred = pd.DataFrame({
-        'x': sas_points[:,0],
-        'y': sas_points[:,1],
-        'z': sas_points[:,2],
-        'pred': predicciones,
-        'proba': probabilidades
-    })
-
-# Filtrar puntos positivos
-    positivos = df_pred[df_pred['pred'] == 1]
-
-    if len(positivos) > 0:
-
-        coords = positivos[['x','y','z']].values
-
-        clustering = DBSCAN(eps=3.0, min_samples=10).fit(coords)
-        positivos = positivos.copy()
-        positivos['cluster'] = clustering.labels_
-
-        # Quitar ruido
-        positivos = positivos[positivos['cluster'] != -1]
-
-        # Seleccionar clusters grandes
-        cluster_sizes = positivos.groupby('cluster').size().sort_values(ascending=False)
-
-        top_clusters = cluster_sizes.head(3).index
-
-        positivos = positivos[positivos['cluster'].isin(top_clusters)]
-
-        print(f"Clusters detectados: {len(top_clusters)}")
-
-    # Crear nueva predicción filtrada
-        pred_filtrado = np.zeros(len(predicciones))
-
-    # Marcar solo los puntos de clusters buenos
-        indices_validos = positivos.index.to_numpy()
-        pred_filtrado[indices_validos] = 1
-
-        predicciones = pred_filtrado.astype(int)
-
-    else:
-        print("No hay puntos positivos para clustering")
-
-    n_binding = int(predicciones.sum())
-    print(f"Puntos totales evaluados: {len(predicciones)}")
-    print(f"Puntos predichos como binding site (1): {n_binding}")
-    print(f"Puntos predichos como no-binding  (0): {len(predicciones) - n_binding}")
-
-    # Mapear a residuos
-    print("\nMapeando puntos al binding site a residuos de la proteína...")
-    residuos = mapear_residuos(sas_points, predicciones, lista_atomos, tree)
-    print(f"Residuos únicos en el binding site: {len(residuos)}")
-
-    # Guardar outputs
-    pdb_base = os.path.splitext(os.path.basename(pdbfile))[0]
-    guardar_residuos_txt(residuos, pdbfile, output=f"{pdb_base}_binding_site_residues.txt")
-    guardar_pymol(residuos, pdbfile, output=f"{pdb_base}_visualization.pml")
-
-    print("\n¡Predicción completada!")
-    print(f"Archivos generados:")
-    print(f"  - {pdb_base}_binding_site_residues.txt")
-    print(f"  - {pdb_base}_visualization.pml")
-
-    return residuos, predicciones, probabilidades
+    except Exception as e:
+        logging.critical(f"Critical error in the prediction pipeline for {pdbfile}: {e}")
+        return None
 
 
 if __name__ == "__main__":

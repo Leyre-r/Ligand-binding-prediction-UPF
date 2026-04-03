@@ -3,7 +3,7 @@ This repository contains the Ligand Binding Prediction project developed during 
 
 ## Tutorial
 
-Install dependencies: pip install -r requirements.txt
+Install dependencies: pip install Ligand-binding-prediction-0.1.0.tar.gz
 
 Prepare the PDB file: Move the PDB file (<protein.pdb>) into the program folder.
 
@@ -23,29 +23,29 @@ The binding pocket is usually defined as a cavity on the surface or in the inter
 ### Feature Descriptors
 To predict the ligandability of a certain point of the protein structure, this project takes into account the following binding pocket properties, using as a reference the top features described for P2Rank, a machine learning based tool that predicts ligand binding sites from the protein structure (Krivák & Hoksza, 2018).
 
-1. Protrusion: The identification of pockets and cavities is relevant, since the binding sites for small molecules are usually pockets or crevices on the protein surface or cavities in the protein (Henrich et al., 2010).
+1. **Protrusion**: The identification of pockets and cavities is relevant, since the binding sites for small molecules are usually pockets or crevices on the protein surface or cavities in the protein (Henrich et al., 2010).
 We have defined the protrusion descriptor as the number of protein atoms within a sphere of 10 Å around a Solvent-Accessible Surface (SAS) point. This descriptor indicates the point’s “buriedness”. When its value is high, the SAS point belongs to a pocket and when its value is low, the SAS point is in a protrusion.
 
-2. b-factor: It’s the weighted average, normalized by density, of the B-factor of the atoms that are within a radius of  6 Å from the SAS point. This feature is relevant, because binding sites often have a specific flexibility to be able to bind to the ligand. 
+2. **b-factor**: It’s the weighted average, normalized by density, of the B-factor of the atoms that are within a radius of  6 Å from the SAS point. This feature is relevant, because binding sites often have a specific flexibility to be able to bind to the ligand. 
 
-3. Invalids: Counts the number of Nitrogen (N) and Oxigen (O) atoms present within a 6 Å radius from the SAS point, weighting their contribution by their distance to the point. The invalids descriptor identifies regions with high polar density, which is favourable for the binding as Bartlett et al. (2002)
+3. **Invalids**: Counts the number of Nitrogen (N) and Oxigen (O) atoms present within a 6 Å radius from the SAS point, weighting their contribution by their distance to the point. The invalids descriptor identifies regions with high polar density, which is favourable for the binding as Bartlett et al. (2002)
  found that catalytic residues occur with a higher frequency as charged residues than as polar or hydrophobic residues. 
 
-4. Aromatic (Aromaticidad): Identifies the number of PHE, TYR and TRP residues present in a 6 Å radius. This is relevant because the occurrence of tryptophan was much higher at ligand binding sites, as proposed by Soga et al. (2007).
+4. **Aromatic**: Identifies the number of PHE, TYR and TRP residues present in a 6 Å radius. This is relevant because the occurrence of tryptophan was much higher at ligand binding sites, as proposed by Soga et al. (2007).
 
-5. Hydrophobic: for each SAS point, it calculates the average hydrophobicity of the atoms within a 6 Å radius, weighted by the inverse of the distance and normalized by the local atomic density. The hydrophobicity is calculated using the scale Kyte-Doolittle (Kyte & Doolittle, 1982). This parameter allows to predict exposed or buried regions. 
+5. **Hydrophobic**: for each SAS point, it calculates the average hydrophobicity of the atoms within a 6 Å radius, weighted by the inverse of the distance and normalized by the local atomic density. The hydrophobicity is calculated using the scale Kyte-Doolittle (Kyte & Doolittle, 1982). This parameter allows to predict exposed or buried regions. 
 
-6. Polarity: this parameter represents the average local polarity at a SAS point. It is calculated as the distance-weighted sum of the polarity values of neighboring amino acid side chains at physiological pH, normalized by the local atomic density.
+6. **Polarity**: this parameter represents the average local polarity at a SAS point. It is calculated as the distance-weighted sum of the polarity values of neighboring amino acid side chains at physiological pH, normalized by the local atomic density.
 
-7. Net charge: indicates the average weighted electrical charge of a point, computed using the charge values of the side chains associated with each atom found within a 6 Å radius. These values correspond to the standard charge of the amino acid residues at physiological pH (Pace et al., 2009).
+7. **Net charge**: indicates the average weighted electrical charge of a point, computed using the charge values of the side chains associated with each atom found within a 6 Å radius. These values correspond to the standard charge of the amino acid residues at physiological pH (Pace et al., 2009).
 
-8. Ratio density: measures the curvature or depth of the SAS point, calculated as the number of atoms found in a radius of 6.0 Å divided by the number of atoms found in a radius of 10.0 Å plus one.
+8. **Ratio density**: measures the curvature or depth of the SAS point, calculated as the number of atoms found in a radius of 6.0 Å divided by the number of atoms found in a radius of 10.0 Å plus one.
 
-9. bfactor variance: it’s the variance of the b-factor and measures the heterogeneity of the local flexibility. 
+9. **bfactor variance**: it’s the variance of the b-factor and measures the heterogeneity of the local flexibility. 
 
-10. hydro_polar_ratio: defines the predominant chemical nature of the environment. It’s calculated as the division between the sum of the hydrophobicty and the polarity of the neighbouring atoms. 
+10. **hydro polar ratio**: defines the predominant chemical nature of the environment. It’s calculated as the division between the sum of the hydrophobicty and the polarity of the neighbouring atoms. 
 
-11. Unique residues: counts the number of unique amino acids found within a radius of 6.0 Å, measuring the biochemical complexity of the environment that surrounds the SAS point.
+11. **Unique residues**: counts the number of unique amino acids found within a radius of 6.0 Å, measuring the biochemical complexity of the environment that surrounds the SAS point.
 
 ### Computational Approach
 

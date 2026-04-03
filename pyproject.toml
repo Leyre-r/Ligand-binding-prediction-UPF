@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "myproject"
+name = "Ligand-binding-prediction"
 version = "0.1.0"
 dependencies = [
     "biopython>=1.86",
@@ -13,15 +13,12 @@ dependencies = [
     "scipy>=1.17.1",
     "matplotlib>=3.10.8",
     "seaborn>=0.13.2",
-    # ME SALE QUE NO TENGO sklearn 
-    "sklearn>=",
-    "joblib>=1.5.3",
-    # TAMPOCO TENGO ESTOS
-    "request>=",
-    "random>=",
-    "rdkit>="
+    "sklearn>=", # ME SALE QUE NO TENGO sklearn 
+    "joblib>=1.5.3",   
+    "random>=",  # TAMPOCO TENGO ESTE
+    "rdkit>=2025.9.6"
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["myproject*"]
+include = ["Ligand-binding-prediction*"]

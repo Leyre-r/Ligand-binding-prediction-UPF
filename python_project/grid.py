@@ -22,7 +22,14 @@ import sys
 
 def cargar_ligando_sdf(sdf_path):
     """
-    DOCSTRING
+    Extracts the 3D atomic coordinates from an SDF ligand file.
+
+    Args:
+        sdf_path (str): Path to the ligand file in .sdf format.
+
+    Returns:
+        numpy.ndarray: An array of shape (N, 3) containing the coordinates of the N atoms in the ligand. 
+        None: if the file cannot be read or contains no valid molecule.
     """
     try:
         mol = Chem.SDMolSupplier(sdf_path)[0]
@@ -42,6 +49,31 @@ def cargar_ligando_sdf(sdf_path):
         print(f"Error leyendo ligando {sdf_path}: {e}")
         return None
     
+# Diccionario de referencia 
+PROPIEDADES = {
+        'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1, 'charge': 1},
+        'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'ASP': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
+        'CYS': {'hydro': 2.5,  'aromatic': 0, 'polar': 1, 'charge': 0},
+        'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
+        'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0, 'charge': 0},
+        'HIS': {'hydro': -3.2, 'aromatic': 0, 'polar': 1, 'charge': 0.5},
+        'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1, 'charge': 1},
+        'MET': {'hydro': 1.9,  'aromatic': 0, 'polar': 0, 'charge': 0},
+        'PHE': {'hydro': 2.8,  'aromatic': 1, 'polar': 0, 'charge': 0},
+        'PRO': {'hydro': -1.6, 'aromatic': 0, 'polar': 0, 'charge': 0},
+        'SER': {'hydro': -0.8, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'THR': {'hydro': -0.7, 'aromatic': 0, 'polar': 1, 'charge': 0},
+        'TRP': {'hydro': -0.9, 'aromatic': 1, 'polar': 1, 'charge': 0},
+        'TYR': {'hydro': -1.3, 'aromatic': 1, 'polar': 1, 'charge': 0},
+        'VAL': {'hydro': 4.2,  'aromatic': 0, 'polar': 0, 'charge': 0}
+    }
+
+
 def procesar_sample(pdbfile, ligand_file): 
     """
     Generates a dataset that contains the structural and physicochemical descriptors calculated from a PDB file.
@@ -116,31 +148,6 @@ def procesar_sample(pdbfile, ligand_file):
         target = [1 if len(vecinos) > 0 else 0 for vecinos in distancias_al_ligando]
     else:
         target = [0] * len(sas_points)
-
-    # 8. Diccionario de referencia 
-    PROPIEDADES = {
-        'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
-        'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1, 'charge': 1},
-        'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
-        'ASP': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
-        'CYS': {'hydro': 2.5,  'aromatic': 0, 'polar': 1, 'charge': 0},
-        'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
-        'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
-        'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0, 'charge': 0},
-        'HIS': {'hydro': -3.2, 'aromatic': 0, 'polar': 1, 'charge': 0.5},
-        'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0, 'charge': 0},
-        'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
-        'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1, 'charge': 1},
-        'MET': {'hydro': 1.9,  'aromatic': 0, 'polar': 0, 'charge': 0},
-        'PHE': {'hydro': 2.8,  'aromatic': 1, 'polar': 0, 'charge': 0},
-        'PRO': {'hydro': -1.6, 'aromatic': 0, 'polar': 0, 'charge': 0},
-        'SER': {'hydro': -0.8, 'aromatic': 0, 'polar': 1, 'charge': 0},
-        'THR': {'hydro': -0.7, 'aromatic': 0, 'polar': 1, 'charge': 0},
-        'TRP': {'hydro': -0.9, 'aromatic': 1, 'polar': 1, 'charge': 0},
-        'TYR': {'hydro': -1.3, 'aromatic': 1, 'polar': 1, 'charge': 0},
-        'VAL': {'hydro': 4.2,  'aromatic': 0, 'polar': 0, 'charge': 0}
-    }
-
 
 
     # 9. Procesar los puntos de la superficie:
