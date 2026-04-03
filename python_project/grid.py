@@ -21,6 +21,9 @@ from rdkit import Chem
 import sys
 
 def cargar_ligando_sdf(sdf_path):
+    """
+    DOCSTRING
+    """
     try:
         mol = Chem.SDMolSupplier(sdf_path)[0]
         if mol is None:
@@ -199,22 +202,18 @@ def procesar_sample(pdbfile, ligand_file): #pocket_file
         f_invalids = 0
         f_polar = 0    
         f_charge = 0
-
         density_6A = len(vecinos_6A)
         ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
         hydro_norm = f_hydro / (len(vecinos_6A) + 1)
-        density_6A = len(vecinos_6A)
-
         protrusion_ratio = len(vecinos_3_5A) / (density_6A + 1)
-        charge_norm = f_charge / (density_6A + 1)
+        #charge_norm = f_charge / (density_6A + 1)
 
-        if density_6A > 0:
-            bfactor_var = np.var([
-                lista_atomos[idx].get_bfactor()
-                for idx in vecinos_6A
-            ])
-        else:
-            bfactor_var = 0
+        #if density_6A > 0:
+         #   bfactor_var = np.var([
+          #      lista_atomos[idx].get_bfactor()
+           #     for idx in vecinos_6A])
+        #else:
+         #   bfactor_var = 0
 
         # Para un punto concreto:
         for idx in vecinos_6A:
@@ -239,8 +238,8 @@ def procesar_sample(pdbfile, ligand_file): #pocket_file
         
         # Guardar todos los resultados en una fila
         fila = {
-            'protrusion': len(vecinos_10A),      # Neighbor Count
-            'atom0': len(vecinos_3_5A),           # Presencia de átomos
+            'protrusion': len(vecinos_10A),      
+            'atom0': len(vecinos_3_5A),           
             'bfactor': f_bfactor / (len(vecinos_6A) + 1),
             'Invalids': f_invalids,
             'Aromatic': f_aromatic,
@@ -250,9 +249,9 @@ def procesar_sample(pdbfile, ligand_file): #pocket_file
             'density_6A': density_6A,
             'ratio_density': ratio_density,
             'hydro_norm': hydro_norm,
-            'protrusion_ratio': protrusion_ratio,
-            'charge_norm': charge_norm,
-            'bfactor_var': bfactor_var
+            'protrusion_ratio': protrusion_ratio
+            #'charge_norm': charge_norm,
+            #'bfactor_var': bfactor_var
             #'dist_pocket': dist_pocket
         }
 
@@ -274,8 +273,9 @@ def procesar_sample(pdbfile, ligand_file): #pocket_file
 if __name__ == "__main__":
     if len(sys.argv) > 1:
     #Coger el archivo que queremos predecir desde la command line
-        file = sys.argv[1]
+        file_pdb = sys.argv[1]
+        ligand_file = sys.argv[2]
         print("Usar procesar_sample desde otro script")
-        #procesar_pdb(file)
+        procesar_sample(file_pdb, ligand_file)
     else:
         print("Error: no file provided")

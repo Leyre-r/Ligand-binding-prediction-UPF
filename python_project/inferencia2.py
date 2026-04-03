@@ -106,6 +106,10 @@ def calcular_features(pdbfile):
         f_invalids = 0
         f_polar = 0    
         f_charge = 0
+        density_6A = len(vecinos_6A)
+        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
+        hydro_norm = f_hydro / (len(vecinos_6A) + 1)
+        protrusion_ratio = len(vecinos_3_5A) / (density_6A + 1)
 
         for idx in vecinos_6A:
             atomo    = lista_atomos[idx]
@@ -118,6 +122,8 @@ def calcular_features(pdbfile):
                 f_hydro    += props['hydro']    * peso
                 f_aromatic += props['aromatic'] * peso
                 f_bfactor  += atomo.get_bfactor() * peso
+                f_polar += props['polar'] * peso    
+                f_charge += props['charge'] * peso
 
                 atom_name = atomo.get_name().strip()
                 if atom_name.startswith(('N', 'O')):
@@ -131,7 +137,11 @@ def calcular_features(pdbfile):
             'Aromatic':    f_aromatic,
             'hydrophobic':   f_hydro,
             'polar': f_polar,     
-            'net_charge': f_charge
+            'net_charge': f_charge,
+            'density_6A': density_6A,
+            'ratio_density': ratio_density,
+            'hydro_norm': hydro_norm,
+            'protrusion_ratio': protrusion_ratio,
         })
 
     df = pd.DataFrame(data_rows)
@@ -291,7 +301,7 @@ def predecir_binding_site(pdbfile):
 
     # Cargar modelo
     print("\nCargando modelo: modelo_rf_predictor.pkl")
-    modelo = joblib.load("models/modelo_rf_predictor.pkl")
+    modelo = joblib.load("modelo_rf_predictor.pkl")
 
     # Calcular features
     print(f"\nCalculando features SAS para: {pdbfile}")
@@ -302,8 +312,7 @@ def predecir_binding_site(pdbfile):
     df_features, sas_points, lista_atomos, structure, tree = resultado
 
     # Asegurarse de que las columnas estén en el mismo orden que en training
-    columnas_modelo = ['protrusion', 'atom0', 'bfactor', 'apRawInvalids',
-                       'vsAromatic', 'hydrophobic']
+    columnas_modelo = ['protrusion','atom0','bfactor','Invalids','Aromatic','hydrophobic','polar','net_charge','density_6A','ratio_density','hydro_norm','protrusion_ratio']
     X_pred = df_features[columnas_modelo]
 
     # Predecir
@@ -341,11 +350,12 @@ def predecir_binding_site(pdbfile):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Uso: python predict_binding_site.py <proteina.pdb> <modelo.pkl>")
-        print("Ejemplo: python predict_binding_site.py 1OV9.pdb modelo_rf_predictor.pkl")
+    if len(sys.argv) < 2:
+        print("Use: python predict_binding_site.py <protein.pdb>")
+        print("Example: python predict_binding_site.py 1OV9.pdb")
         sys.exit(1)
 
-    pdbfile     = sys.argv[1]
-    modelo_path = sys.argv[2]
-    predecir_binding_site(pdbfile, modelo_path) 
+    pdbfile = sys.argv[1]
+    predecir_binding_site(pdbfile) 
+  
+        #capturar  errores !!!
