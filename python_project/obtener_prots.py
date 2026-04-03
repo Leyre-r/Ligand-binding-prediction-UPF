@@ -1,7 +1,18 @@
 import os
 import pandas as pd
+import random
 
 def encontrar_archivos_sample(ruta_sample):
+    """
+    
+    Args:
+
+    Returns:
+        tuple: A tuple containing the following elements:
+        - protein
+        - ligand
+        - pocket
+    """
     protein = None
     ligand = None
     pocket = None
@@ -31,9 +42,13 @@ def obtener_prots_definitivo(
 ):
     """
     Recorre el dataset estructurado tipo PDBbind y genera un CSV limpio de samples.
+
+    Args:
+
+    Returns:
+        pandas.DataFrame: a DataFrame where
     """
 
-    import random
     random.seed(seed)
 
     samples = []
@@ -103,13 +118,13 @@ def obtener_prots_definitivo(
 # EJECUCIÓN
 # ─────────────────────────────
 if __name__ == "__main__":
-    dataset_path = "/home/julia/Documentos/Segon Trimestre/PYT/Proyecto/P-L"  
+    dataset_path = "P-L"  
 
     df = obtener_prots_definitivo(
         root_dir=dataset_path,
         output_csv="samples.csv",
         min_protein_size_kb=50,
         require_pocket=False,   # True si quieres usarlo más adelante
-        sample_size=1000,       # pon 200 para pruebas rápidas
+        sample_size=200,       # pon 200 para pruebas rápidas
         seed=42
     )

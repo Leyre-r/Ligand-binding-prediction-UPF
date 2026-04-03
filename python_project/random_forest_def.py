@@ -1,10 +1,10 @@
 """
-random_forest.py
+random_forest_def.py
 ------------------------
 Random Forest using SAS-based structural descriptors derived from PDB structures. 
 
 Use:
-    python3 random_forest.py dataset_training_completo.csv
+    python3 random_forest_def.py dataset_training_completo.csv
 
 Output:
     modelo_rf_predictor.pkl  → serialized (.joblib) Random Forest model
@@ -96,6 +96,13 @@ mejor_rf = grid_search.best_estimator_
 print("\nMejores parámetros:", grid_search.best_params_)
 
 # ─────────────────────────────
+# 8. GUARDAR MODELO
+# ─────────────────────────────
+
+joblib.dump(mejor_rf, 'modelo_rf_predictor.pkl') #Gemin i propone cambiar el formato a .joblib
+print("\nModelo guardado como modelo_rf_predictor.pkl")
+
+# ─────────────────────────────
 # 5. EVALUACIÓN FINAL
 # ─────────────────────────────
 y_proba = mejor_rf.predict_proba(X_test)[:, 1]
@@ -135,8 +142,11 @@ importancias = pd.Series(
 print("\n--- Importancia de las Features ---")
 print(importancias.head(20))
 
-# ─────────────────────────────
-# 8. GUARDAR MODELO
-# ─────────────────────────────
-joblib.dump(mejor_rf, 'modelo_rf_predictor.pkl')
-print("\nModelo guardado como modelo_rf_predictor.pkl")
+#gráfico de importancias
+plt.figure(figsize=(10, 6))
+importancias.head(10).plot(kind='barh', color='skyblue')
+plt.title('Top 10 Feature Importance')
+plt.gca().invert_yaxis()
+plt.savefig('feature_importance.png')
+plt.show()
+

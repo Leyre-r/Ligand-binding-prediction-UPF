@@ -21,6 +21,9 @@ from rdkit import Chem
 import sys
 
 def cargar_ligando_sdf(sdf_path):
+    """
+    DOCSTRING
+    """
     try:
         mol = Chem.SDMolSupplier(sdf_path)[0]
         if mol is None:
@@ -279,8 +282,9 @@ def procesar_sample(pdbfile, ligand_file): #pocket_file
 if __name__ == "__main__":
     if len(sys.argv) > 1:
     #Coger el archivo que queremos predecir desde la command line
-        file = sys.argv[1]
+        file_pdb = sys.argv[1]
+        ligand_file = sys.argv[2]
         print("Usar procesar_sample desde otro script")
-        #procesar_pdb(file)
+        procesar_sample(file_pdb, ligand_file)
     else:
         print("Error: no file provided")

@@ -1,3 +1,13 @@
+"""
+generate_training_data.py
+------------------------
+Description. 
+
+Use:
+
+Output:
+    dataset_test.csv  → 
+"""
 # import grid
 # import pandas as pd
 # import os
