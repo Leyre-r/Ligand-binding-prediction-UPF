@@ -127,7 +127,7 @@ def procesar_sample(pdbfile, ligand_file):
         'GLU': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': -1},
         'GLN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
         'GLY': {'hydro': -0.4, 'aromatic': 0, 'polar': 0, 'charge': 0},
-        'HIS': {'hydro': -3.2, 'aromatic': 1, 'polar': 1, 'charge': 0.5},
+        'HIS': {'hydro': -3.2, 'aromatic': 0, 'polar': 1, 'charge': 0.5},
         'ILE': {'hydro': 4.5,  'aromatic': 0, 'polar': 0, 'charge': 0},
         'LEU': {'hydro': 3.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
         'LYS': {'hydro': -3.9, 'aromatic': 0, 'polar': 1, 'charge': 1},
