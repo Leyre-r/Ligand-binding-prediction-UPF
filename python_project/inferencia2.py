@@ -18,6 +18,7 @@ from Bio.PDB import PDBParser
 import joblib
 import sys
 import os
+from sklearn.cluster import DBSCAN
 
 
 # ─────────────────────────────────────────────
@@ -302,8 +303,7 @@ def predecir_binding_site(pdbfile):
     df_features, sas_points, lista_atomos, structure, tree = resultado
 
     # Asegurarse de que las columnas estén en el mismo orden que en training
-    columnas_modelo = ['protrusion', 'atom0', 'bfactor', 'apRawInvalids',
-                       'vsAromatic', 'hydrophobic']
+    columnas_modelo = ['protrusion', 'bfactor', 'Invalids', 'Aromatic', 'hydrophobic', 'polar', 'net_charge', 'ratio_density', 'bfactor_var', 'hydro_polar_ratio', 'unique_residues']
     X_pred = df_features[columnas_modelo]
 
     # Predecir
@@ -314,6 +314,51 @@ def predecir_binding_site(pdbfile):
     print(f"\nEjecutando predicción con umbral de confianza {umbral}...")
     # Creamos las nuevas predicciones: 1 si prob >= 0.8, de lo contrario 0
     predicciones = (probabilidades >= umbral).astype(int)
+
+    
+
+# Crear dataframe auxiliar con coords + pred
+df_pred = pd.DataFrame({
+    'x': sas_points[:,0],
+    'y': sas_points[:,1],
+    'z': sas_points[:,2],
+    'pred': predicciones,
+    'proba': probabilidades
+})
+
+# Filtrar puntos positivos
+positivos = df_pred[df_pred['pred'] == 1]
+
+if len(positivos) > 0:
+
+    coords = positivos[['x','y','z']].values
+
+    clustering = DBSCAN(eps=3.0, min_samples=10).fit(coords)
+    positivos['cluster'] = clustering.labels_
+
+    # Quitar ruido
+    positivos = positivos[positivos['cluster'] != -1]
+
+    # Seleccionar clusters grandes
+    cluster_sizes = positivos.groupby('cluster').size().sort_values(ascending=False)
+
+    top_clusters = cluster_sizes.head(3).index
+
+    positivos = positivos[positivos['cluster'].isin(top_clusters)]
+
+    print(f"Clusters detectados: {len(top_clusters)}")
+
+    # Crear nueva predicción filtrada
+    pred_filtrado = np.zeros(len(predicciones))
+
+    # Marcar solo los puntos de clusters buenos
+    indices_validos = positivos.index
+    pred_filtrado[indices_validos] = 1
+
+    predicciones = pred_filtrado.astype(int)
+
+else:
+    print("No hay puntos positivos para clustering")
 
     n_binding = int(predicciones.sum())
     print(f"Puntos totales evaluados: {len(predicciones)}")
