@@ -101,13 +101,13 @@ def obtener_prots_definitivo(
     # ────────────────
     # SAMPLING OPCIONAL
     # ────────────────
-    if sample_size is not None and len(samples) > sample_size:
-        samples = random.sample(samples, sample_size)
-        print(f"Submuestreo aplicado: {len(samples)} samples")
-
     df = pd.DataFrame(samples)
-    df = df.sort_values("pdb_id").reset_index(drop=True)
+    df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
+    if sample_size is not None and len(df) > sample_size:
+        df = df.sample(n=sample_size, random_state=seed).reset_index(drop=True)
+        print(f"Submuestreo aplicado: {len(df)} samples")
+    
     df.to_csv(output_csv, index=False)
     print(f"\nCSV guardado en: {output_csv}")
 
@@ -118,7 +118,7 @@ def obtener_prots_definitivo(
 # EJECUCIÓN
 # ─────────────────────────────
 if __name__ == "__main__":
-    dataset_path = "P-L"  
+    dataset_path = "/home/julia/Documentos/Segon Trimestre/PYT/Proyecto/P-L"  
 
     df = obtener_prots_definitivo(
         root_dir=dataset_path,
