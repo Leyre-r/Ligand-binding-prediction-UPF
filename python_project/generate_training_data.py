@@ -1,51 +1,11 @@
 """
 generate_training_data.py
 ------------------------
-Description. 
+Module for generating the training dataset for Random Forest binding site prediction.
 
-Use:
-
-Output:
-    dataset_test.csv  → 
+Processes a filtered proteins list via the 'grid' module to extract descriptors and exports a balanced CSV dataset. 
+Part of the protein analysis pipeline for binding site detection.
 """
-# import grid
-# import pandas as pd
-# import os
-
-# lista_csvs = []
-# carpeta = "files/"
-# for archivo in os.listdir(carpeta):
-#     if archivo.endswith(".pdb"):
-#         # Aquí llamas a tu función que calcula features + target
-#         ruta_completa = os.path.join(carpeta, archivo)
-#         df_proteina = grid.procesar_pdb(ruta_completa)
-#         if df_proteina is not None:
-#             lista_csvs.append(df_proteina)
-
-# # Unir todos en un solo archivo maestro
-# if lista_csvs:
-#     # pd.concat junta todos los DataFrames uno debajo del otro
-#     dataset_final = pd.concat(lista_csvs, ignore_index=True) 
-#     #pd.concat es lo que hace que el encabezado del csv solo salga 1 vez en el resultado final (pero funciona)    
-# else:
-#     print("No se generaron datos.")
-
-# print(f"Dataset original: {len(dataset_final)} filas")
-
-# # Aplicar el downsampling
-# df_clase_0 = dataset_final[dataset_final['target'] == 0]
-# df_clase_1 = dataset_final[dataset_final['target'] == 1]
-# # balance 1:1 o 1:2 
-# df_clase_0_reducido = df_clase_0.sample(n=2*len(df_clase_1), random_state=42)
-
-
-# # Ahora sí, guardamos el CSV gigante con toda la información
-# df_balanceado = pd.concat([df_clase_1, df_clase_0_reducido])
-# print(f"Dataset balanceado: {len(df_balanceado)} filas")
-
-# # PASO 4: Guardar el CSV final para el training
-# df_balanceado.to_csv("dataset_training_optimizado.csv", index=False)
-# print("Éxito! dataset_training_optimizado.csv ha sido creado")
 
 import pandas as pd
 import grid
@@ -54,8 +14,20 @@ def generar_dataset(
     samples_csv,
     output_csv="dataset_test.csv",
     ratio_neg_pos=2,
-    max_samples=None
-):
+    max_samples=None):
+
+    """
+    Parses a list of protein paths to calculate their descriptors and create a training/test set, balancing the proportion of negative SAS points. 
+
+    Args:
+        samples_csv (str): Path to the CSV file with the columns 'pdb_id', 'protein_path' and 'ligand_path'.
+        output_csv (str): File where the calculated descriptors are saved.
+        ratio_neg_pos (int): number of negative SAS points (target=0) to be included for each positive SAS point (target=1). By default is 2.
+        max_samples (int, optional): maximum number of proteins from the list to be processed. If is None, process all of them.
+
+        Returns:
+            None: the function writes the result in 'output_csv'.
+    """
 
     df_samples = pd.read_csv(samples_csv)
 
@@ -76,18 +48,16 @@ def generar_dataset(
 
         print(f"[{i+1}/{len(df_samples)}] {pdb_id}")
 
-        # ─────────────────────────
-        # 1. PROCESAR SAMPLE
-        # ─────────────────────────
+    
+        # 1. PROCESSING SAMPLE
         df = grid.procesar_sample(protein_path, ligand_path) #pocket_path
 
         if df is None or len(df) == 0:
             print("⚠️ vacío, skip\n")
             continue
 
-        # ─────────────────────────
-        # 2. BALANCEO
-        # ─────────────────────────
+   
+        # 2. BALANCING
         df_1 = df[df["target"] == 1]
         df_0 = df[df["target"] == 0]
 
@@ -102,9 +72,6 @@ def generar_dataset(
 
         df_bal = pd.concat([df_1, df_0_sampled])
 
-        # ─────────────────────────
-        # 3. GUARDADO INCREMENTAL
-        # ─────────────────────────
         if first_write:
             df_bal.to_csv(output_csv, index=False)
             first_write = False
@@ -113,10 +80,10 @@ def generar_dataset(
 
         total_rows += len(df_bal)
 
-        print(f"✔ añadido: {len(df_bal)} filas | total: {total_rows}\n")
+        print(f"added: {len(df_bal)} filas | total: {total_rows}\n")
 
-    print("✅ Dataset final generado:", output_csv)
-    print(f"Total filas: {total_rows}")
+    print("Final dataset generated:", output_csv)
+    print(f"Total rows: {total_rows}")
 
 if __name__ == "__main__":
     generar_dataset("samples.csv", output_csv="dataset_test.csv", ratio_neg_pos=2, max_samples=200)
