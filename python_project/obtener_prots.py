@@ -116,13 +116,16 @@ def obtener_prots_definitivo(
 
     # OPTIONAL SAMPLING
 
-    if sample_size is not None and len(samples) > sample_size:
-        samples = random.sample(samples, sample_size)
-        print(f"Subsample applied: {len(samples)} samples")
-
+    # ────────────────
+    # SAMPLING OPCIONAL
+    # ────────────────
     df = pd.DataFrame(samples)
-    df = df.sort_values("pdb_id").reset_index(drop=True)
+    df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
+    if sample_size is not None and len(df) > sample_size:
+        df = df.sample(n=sample_size, random_state=seed).reset_index(drop=True)
+        print(f"Submuestreo aplicado: {len(df)} samples")
+    
     df.to_csv(output_csv, index=False)
     print(f"\nCSV saved in: {output_csv}")
 

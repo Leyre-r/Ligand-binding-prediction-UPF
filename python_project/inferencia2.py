@@ -18,6 +18,7 @@ from Bio.PDB import PDBParser
 import joblib
 import sys
 import os
+from sklearn.cluster import DBSCAN
 
 
 # ─────────────────────────────────────────────
@@ -96,32 +97,31 @@ def calcular_features(pdbfile):
     data_rows = []
 
     for i, punto in enumerate(sas_points):
-        vecinos_6A   = tree.query_ball_point(punto, 6.0)
-        vecinos_10A  = tree.query_ball_point(punto, 10.0)
+
+        vecinos_6A = tree.query_ball_point(punto, 6.0)
+        vecinos_10A = tree.query_ball_point(punto, 10.0)
         vecinos_3_5A = tree.query_ball_point(punto, 3.5)
 
+        density_6A = len(vecinos_6A)
+
         f_aromatic = 0
-        f_hydro    = 0
-        f_bfactor  = 0
+        f_hydro = 0
+        f_bfactor = 0
         f_invalids = 0
         f_polar = 0    
         f_charge = 0
-        density_6A = len(vecinos_6A)
-        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
-        hydro_norm = f_hydro / (len(vecinos_6A) + 1)
-        protrusion_ratio = len(vecinos_3_5A) / (density_6A + 1)
 
         for idx in vecinos_6A:
-            atomo    = lista_atomos[idx]
+            atomo = lista_atomos[idx]
             res_name = atomo.get_parent().get_resname()
-            dist     = np.linalg.norm(punto - atomo.get_coord())
-            peso     = 1 / (dist + 0.5)
+            dist = np.linalg.norm(punto - atomo.get_coord())
+            peso = 1 / (dist + 0.5)
 
             if res_name in PROPIEDADES:
-                props       = PROPIEDADES[res_name]
-                f_hydro    += props['hydro']    * peso
+                props = PROPIEDADES[res_name]
+                f_hydro += props['hydro'] * peso
                 f_aromatic += props['aromatic'] * peso
-                f_bfactor  += atomo.get_bfactor() * peso
+                f_bfactor += atomo.get_bfactor() * peso
                 f_polar += props['polar'] * peso    
                 f_charge += props['charge'] * peso
 
@@ -129,19 +129,40 @@ def calcular_features(pdbfile):
                 if atom_name.startswith(('N', 'O')):
                     f_invalids += 1 * peso
 
+        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
+
+        hydro_norm = f_hydro / (density_6A + 1)
+        charge_norm = f_charge / (density_6A + 1)
+        polar_norm = f_polar / (density_6A + 1)
+        bfactor_norm = f_bfactor / (density_6A + 1)
+
+        hydro_polar_ratio = f_hydro / (f_polar + 1)
+
+        unique_residues = len(set([
+            lista_atomos[idx].get_parent().get_resname()
+            for idx in vecinos_6A
+        ]))
+
+        if density_6A > 0:
+            bfactor_var = np.var([
+                lista_atomos[idx].get_bfactor()
+                for idx in vecinos_6A
+            ])
+        else:
+            bfactor_var = 0
+
         data_rows.append({
-            'protrusion':    len(vecinos_10A),
-            'atom0':         len(vecinos_3_5A),
-            'bfactor':       f_bfactor / (len(vecinos_6A) + 1),
+            'protrusion': len(vecinos_10A),
+            'bfactor': bfactor_norm,
             'Invalids': f_invalids,
-            'Aromatic':    f_aromatic,
-            'hydrophobic':   f_hydro,
-            'polar': f_polar,     
-            'net_charge': f_charge,
-            'density_6A': density_6A,
+            'Aromatic': f_aromatic,
+            'hydrophobic': hydro_norm,
+            'polar': polar_norm,
+            'net_charge': charge_norm,
             'ratio_density': ratio_density,
-            'hydro_norm': hydro_norm,
-            'protrusion_ratio': protrusion_ratio,
+            'bfactor_var': bfactor_var,
+            'hydro_polar_ratio': hydro_polar_ratio,
+            'unique_residues': unique_residues
         })
 
     df = pd.DataFrame(data_rows)
@@ -312,7 +333,7 @@ def predecir_binding_site(pdbfile):
     df_features, sas_points, lista_atomos, structure, tree = resultado
 
     # Asegurarse de que las columnas estén en el mismo orden que en training
-    columnas_modelo = ['protrusion','atom0','bfactor','Invalids','Aromatic','hydrophobic','polar','net_charge','density_6A','ratio_density','hydro_norm','protrusion_ratio']
+    columnas_modelo = ['protrusion', 'bfactor', 'Invalids', 'Aromatic', 'hydrophobic', 'polar', 'net_charge', 'ratio_density', 'bfactor_var', 'hydro_polar_ratio', 'unique_residues']
     X_pred = df_features[columnas_modelo]
 
     # Predecir
@@ -323,6 +344,52 @@ def predecir_binding_site(pdbfile):
     print(f"\nEjecutando predicción con umbral de confianza {umbral}...")
     # Creamos las nuevas predicciones: 1 si prob >= 0.8, de lo contrario 0
     predicciones = (probabilidades >= umbral).astype(int)
+
+    
+
+# Crear dataframe auxiliar con coords + pred
+    df_pred = pd.DataFrame({
+        'x': sas_points[:,0],
+        'y': sas_points[:,1],
+        'z': sas_points[:,2],
+        'pred': predicciones,
+        'proba': probabilidades
+    })
+
+# Filtrar puntos positivos
+    positivos = df_pred[df_pred['pred'] == 1]
+
+    if len(positivos) > 0:
+
+        coords = positivos[['x','y','z']].values
+
+        clustering = DBSCAN(eps=3.0, min_samples=10).fit(coords)
+        positivos = positivos.copy()
+        positivos['cluster'] = clustering.labels_
+
+        # Quitar ruido
+        positivos = positivos[positivos['cluster'] != -1]
+
+        # Seleccionar clusters grandes
+        cluster_sizes = positivos.groupby('cluster').size().sort_values(ascending=False)
+
+        top_clusters = cluster_sizes.head(3).index
+
+        positivos = positivos[positivos['cluster'].isin(top_clusters)]
+
+        print(f"Clusters detectados: {len(top_clusters)}")
+
+    # Crear nueva predicción filtrada
+        pred_filtrado = np.zeros(len(predicciones))
+
+    # Marcar solo los puntos de clusters buenos
+        indices_validos = positivos.index.to_numpy()
+        pred_filtrado[indices_validos] = 1
+
+        predicciones = pred_filtrado.astype(int)
+
+    else:
+        print("No hay puntos positivos para clustering")
 
     n_binding = int(predicciones.sum())
     print(f"Puntos totales evaluados: {len(predicciones)}")
@@ -336,10 +403,8 @@ def predecir_binding_site(pdbfile):
 
     # Guardar outputs
     pdb_base = os.path.splitext(os.path.basename(pdbfile))[0]
-    guardar_residuos_txt(residuos, pdbfile,
-                         output=f"{pdb_base}_binding_site_residues.txt")
-    guardar_pymol(residuos, pdbfile,
-                  output=f"{pdb_base}_visualization.pml")
+    guardar_residuos_txt(residuos, pdbfile, output=f"{pdb_base}_binding_site_residues.txt")
+    guardar_pymol(residuos, pdbfile, output=f"{pdb_base}_visualization.pml")
 
     print("\n¡Predicción completada!")
     print(f"Archivos generados:")

@@ -150,8 +150,10 @@ def procesar_sample(pdbfile, ligand_file):
         # Recuperar vecinos en diferentes radios
         vecinos_6A = tree.query_ball_point(punto, 6.0)
         vecinos_10A = tree.query_ball_point(punto, 10.0)
-        vecinos_3_5A = tree.query_ball_point(punto, 3.5)
+        #vecinos_3_5A = tree.query_ball_point(punto, 3.5)
         
+        density_6A = len(vecinos_6A)
+
         # Inicializamos las features para este punto
         f_aromatic = 0
         f_hydro = 0
@@ -159,10 +161,6 @@ def procesar_sample(pdbfile, ligand_file):
         f_invalids = 0
         f_polar = 0    
         f_charge = 0
-        density_6A = len(vecinos_6A)
-        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
-        hydro_norm = f_hydro / (len(vecinos_6A) + 1)
-        protrusion_ratio = len(vecinos_3_5A) / (density_6A + 1)
 
         # Para un punto concreto:
         for idx in vecinos_6A:
@@ -184,21 +182,40 @@ def procesar_sample(pdbfile, ligand_file):
                 atom_name = atomo.get_name().strip()
                 if atom_name.startswith(('N', 'O')):
                     f_invalids += 1 * peso
-        
+    
+        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
+        hydro_norm = f_hydro / (density_6A + 1)
+        charge_norm = f_charge / (density_6A + 1)
+        polar_norm = f_polar / (density_6A + 1)
+        bfactor_norm = f_bfactor / (density_6A + 1)   
+        hydro_polar_ratio = f_hydro / (f_polar + 1)
+    
+        unique_residues = len(set([
+            lista_atomos[idx].get_parent().get_resname()
+            for idx in vecinos_6A
+        ]))
+
+        if density_6A > 0:
+            bfactor_var = np.var([
+                lista_atomos[idx].get_bfactor()
+                for idx in vecinos_6A
+            ])
+        else:
+            bfactor_var = 0
+    
         # Guardar todos los resultados en una fila
         fila = {
-            'protrusion': len(vecinos_10A),      
-            'atom0': len(vecinos_3_5A),           
-            'bfactor': f_bfactor / (len(vecinos_6A) + 1),
+            'protrusion': len(vecinos_10A),                
+            'bfactor': bfactor_norm,
             'Invalids': f_invalids,
             'Aromatic': f_aromatic,
-            'hydrophobic': f_hydro,
-            'polar': f_polar,     
-            'net_charge': f_charge,
-            'density_6A': density_6A,
+            'hydrophobic': hydro_norm,
+            'polar': polar_norm,     
+            'net_charge': charge_norm,
             'ratio_density': ratio_density,
-            'hydro_norm': hydro_norm,
-            'protrusion_ratio': protrusion_ratio
+            'bfactor_var': bfactor_var,
+            'hydro_polar_ratio': hydro_polar_ratio,
+            'unique_residues': unique_residues
         }
 
         data_rows.append(fila)
