@@ -348,9 +348,9 @@ def predecir_binding_site(pdbfile):
         probabilidades = modelo.predict_proba(X_pred)[:, 1]
 
         # Definimos el umbral (threshold)
-        umbral = 0.7
+        umbral = 0.5
         print(f"\nEjecutando predicción con umbral de confianza {umbral}...")
-        # Creamos las nuevas predicciones: 1 si prob >= 0.8, de lo contrario 0
+        # Creamos las nuevas predicciones: 1 si prob >= 0.5, de lo contrario 0
         predicciones = (probabilidades >= umbral).astype(int)
 
     # Crear dataframe auxiliar con coords + pred

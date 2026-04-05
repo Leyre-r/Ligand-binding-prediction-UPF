@@ -4,7 +4,7 @@ random_forest_def.py
 Random Forest using SAS-based structural descriptors derived from PDB structures. 
 
 Use:
-    python3 random_forest_def.py dataset_training_completo.csv
+    python3 random_forest_def.py dataset_test.csv
 
 Output:
     modelo_rf_predictor.pkl  → serialized (.joblib) Random Forest model
