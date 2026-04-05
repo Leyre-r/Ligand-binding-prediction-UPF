@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 from Bio.PDB import PDBParser
-from grid import PROPIEDADES
+from grid import PROPERTIES
 import joblib
 import sys
 import os
@@ -90,11 +90,10 @@ def calcular_features(pdbfile):
 
         for i, punto in enumerate(sas_points):
 
-            vecinos_6A = tree.query_ball_point(punto, 6.0)
-            vecinos_10A = tree.query_ball_point(punto, 10.0)
-            #vecinos_3_5A = tree.query_ball_point(punto, 3.5)
+            neighbor_6A = tree.query_ball_point(punto, 6.0)
+            neighbor_10A = tree.query_ball_point(punto, 10.0)
 
-            density_6A = len(vecinos_6A)
+            density_6A = len(neighbor_6A)
 
             f_aromatic = 0
             f_hydro = 0
@@ -103,7 +102,7 @@ def calcular_features(pdbfile):
             f_polar = 0    
             f_charge = 0
 
-            for idx in vecinos_6A:
+            for idx in neighbor_6A:
                 atomo = lista_atomos[idx]
                 res_name = atomo.get_parent().get_resname()
                 dist = np.linalg.norm(punto - atomo.get_coord())
@@ -121,7 +120,7 @@ def calcular_features(pdbfile):
                     if atom_name.startswith(('N', 'O')):
                         f_invalids += 1 * peso
 
-            ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
+            ratio_density = len(neighbor_6A) / (len(neighbor_10A) + 1)
 
             hydro_norm = f_hydro / (density_6A + 1)
             charge_norm = f_charge / (density_6A + 1)
@@ -132,19 +131,19 @@ def calcular_features(pdbfile):
 
             unique_residues = len(set([
                 lista_atomos[idx].get_parent().get_resname()
-                for idx in vecinos_6A
+                for idx in neighbor_6A
             ]))
 
             if density_6A > 0:
                 bfactor_var = np.var([
                     lista_atomos[idx].get_bfactor()
-                    for idx in vecinos_6A
+                    for idx in neighbor_6A
                 ])
             else:
                 bfactor_var = 0
 
             data_rows.append({
-                'protrusion': len(vecinos_10A),
+                'protrusion': len(neighbor_10A),
                 'bfactor': bfactor_norm,
                 'Invalids': f_invalids,
                 'Aromatic': f_aromatic,
@@ -196,10 +195,10 @@ def mapear_residuos(sas_points, predicciones, lista_atomos, tree, radio=4.0):
     print(f"Puntos predichos como binding site: {len(puntos_binding)}")
 
     residuos_binding = set()
-    indices_vecinos = tree.query_ball_point(puntos_binding, radio)
+    indices_neighbor = tree.query_ball_point(puntos_binding, radio)
 
-    for vecinos in indices_vecinos:
-        for idx in vecinos:
+    for neighbor in indices_neighbor:
+        for idx in neighbor:
             atomo   = lista_atomos[idx]
             residuo = atomo.get_parent()
             chain   = residuo.get_parent().get_id()

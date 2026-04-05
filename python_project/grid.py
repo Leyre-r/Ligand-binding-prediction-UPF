@@ -20,7 +20,7 @@ from Bio.PDB import PDBParser
 from rdkit import Chem 
 import sys
 
-def cargar_ligando_sdf(sdf_path):
+def load_ligand_sdf(sdf_path):
     """
     Extracts the 3D atomic coordinates from an SDF ligand file.
 
@@ -46,11 +46,11 @@ def cargar_ligando_sdf(sdf_path):
         return np.array(coords)
 
     except Exception as e:
-        print(f"Error leyendo ligando {sdf_path}: {e}")
+        print(f"Error reading ligand {sdf_path}: {e}")
         return None
     
-# Diccionario de referencia 
-PROPIEDADES = {
+# Reference dictionary
+PROPERTIES = {
         'ALA': {'hydro': 1.8,  'aromatic': 0, 'polar': 0, 'charge': 0},
         'ARG': {'hydro': -4.5, 'aromatic': 0, 'polar': 1, 'charge': 1},
         'ASN': {'hydro': -3.5, 'aromatic': 0, 'polar': 1, 'charge': 0},
@@ -74,7 +74,7 @@ PROPIEDADES = {
     }
 
 
-def procesar_sample(pdbfile, ligand_file): 
+def process_sample(pdbfile, ligand_file): 
     """
     Generates a dataset that contains the structural and physicochemical descriptors calculated from a PDB file.
 
@@ -84,6 +84,8 @@ def procesar_sample(pdbfile, ligand_file):
    
     Args:
         pdbfile (str): Path to the PDB file.
+        ligand_file(str): Path to the .sdf ligand file.
+
     Returns:
         pandas.DataFrame: a DataFrame where each row represnts a SAS point and the columns include the calculated descriptors,
             the 'target' label and the PDB identifier.
@@ -91,35 +93,29 @@ def procesar_sample(pdbfile, ligand_file):
 
     """
 
-    # 1. Instancias el parser
+    # Instance parser
     parser = PDBParser(QUIET=True)
 
-    # 2. Cargamos la estructura
-    #"file": Es el ID que le asigno a la estructura dentro de Python
-    #pdbfile: Es la ruta del archivo físico que quiero leer / Habría que cambiarlo para que lea muchos ficheros
+    # Loading structure
     try:
         structure = parser.get_structure("file", pdbfile)
-    except Exception as e: # Captura cualquier error de lectura - se podría hacer más específico
-        print(f"Error cargando {pdbfile}: {e}")
+    except Exception as e: 
+        print(f"Error loading {pdbfile}: {e}")
         return None 
 
     
-    ligand_coords = cargar_ligando_sdf(ligand_file)
+    ligand_coords = load_ligand_sdf(ligand_file)
 
     if ligand_coords is None:
         ligand_coords = np.array([])
 
-    # 3. Obtener coordenadas de todos los átomos del PDB
+    # Obtaining coordinates of PDB Atomos
     protein_atoms = [a for a in structure.get_atoms() if a.get_parent().get_id()[0] == ' ']
     coords_atoms = np.array([a.get_coord() for a in protein_atoms])
     tree = KDTree(coords_atoms)
-    
-    # IMPORTANTE: Esta es la lista que usaremos para recuperar la información química
-    # Ahora el índice del KDTree coincidirá perfectamente con esta lista
-    lista_atomos = protein_atoms
+    list_atoms = protein_atoms
 
-    # 4. Crear la rejilla (Grid)
-    # Supongamos que x_range, y_range, z_range son tus límites
+    # Creating Grid
     x_min = min(i[0] for i in coords_atoms)
     x_max = max(i[0] for i in coords_atoms)
     y_min = min(i[1] for i in coords_atoms)
@@ -128,40 +124,31 @@ def procesar_sample(pdbfile, ligand_file):
     z_max = max(i[2] for i in coords_atoms)
     grid_points = np.mgrid[x_min:x_max:1, y_min:y_max:1, z_min:z_max:1].reshape(3, -1).T
 
-    # 5. Encontrar los átomos que están más cerca de cada punto (y guardar las distancias)
-    # Consultar la distancia al átomo más cercano para TODOS los puntos a la vez
-    distancias, indices = tree.query(grid_points)
+    # Finding closer atoms
+    distances, indices = tree.query(grid_points)
 
-    # 6. Encontrar los puntos que están en la superficie (2.8 A < distancia atomo-punto < 3.5 A)
-    # Aplicar una "máscara" booleana para filtrar los puntos 
-    mask = (distancias > 2.8) & (distancias < 3.5)
-
-    # Estos son tus puntos finales de la superficie
+    # Finding the points in the surface 
+    mask = (distances > 2.8) & (distances < 3.5)
     sas_points = grid_points[mask]
 
-    #print(f"De {len(grid_points)} puntos iniciales, {len(sas_points)} son superficie.")
-
-    # 7. ASIGNAR TARGETS (Comparando SAS_POINTS con LIGAND_COORDS)
+    # Asign Label to points 
     if len(ligand_coords) > 0:
         ligand_tree = KDTree(ligand_coords)
-        distancias_al_ligando = ligand_tree.query_ball_point(sas_points, r=4.0)
-        target = [1 if len(vecinos) > 0 else 0 for vecinos in distancias_al_ligando]
+        distances_to_ligand = ligand_tree.query_ball_point(sas_points, r=4.0)
+        target = [1 if len(neighbor) > 0 else 0 for neighbor in distances_to_ligand]
     else:
         target = [0] * len(sas_points)
 
 
-    # 9. Procesar los puntos de la superficie:
+    # Descriptors calculation for each point
     data_rows = []
     for i, punto in enumerate(sas_points):
-
-        # Recuperar vecinos en diferentes radios
-        vecinos_6A = tree.query_ball_point(punto, 6.0)
-        vecinos_10A = tree.query_ball_point(punto, 10.0)
-        #vecinos_3_5A = tree.query_ball_point(punto, 3.5)
+        neighbor_6A = tree.query_ball_point(punto, 6.0)
+        neighbor_10A = tree.query_ball_point(punto, 10.0)
         
-        density_6A = len(vecinos_6A)
+        density_6A = len(neighbor_6A)
 
-        # Inicializamos las features para este punto
+        # Features
         f_aromatic = 0
         f_hydro = 0
         f_bfactor = 0
@@ -169,28 +156,26 @@ def procesar_sample(pdbfile, ligand_file):
         f_polar = 0    
         f_charge = 0
 
-        # Para un punto concreto:
-        for idx in vecinos_6A:
-            atomo = lista_atomos[idx]
-            res_name = atomo.get_parent().get_resname() # Esto da el aminoácido 
+        for idx in neighbor_6A:
+            atomo = list_atoms[idx]
+            res_name = atomo.get_parent().get_resname() 
             dist = np.linalg.norm(punto - atomo.get_coord())
             peso = 1 / (dist + 0.5)       
 
-            if res_name in PROPIEDADES:
-                # Proyección con peso por distancia (opcional pero mejor)
-                props = PROPIEDADES[res_name]
+            if res_name in PROPERTIES:
+                props = PROPERTIES[res_name]
                 f_hydro += props['hydro'] * peso
                 f_aromatic += props['aromatic'] * peso
                 f_bfactor += atomo.get_bfactor() * peso
                 f_polar += props['polar'] * peso    
                 f_charge += props['charge'] * peso
 
-                # Cálculo de Invalids (N y O)
+                # Feature Invalids
                 atom_name = atomo.get_name().strip()
                 if atom_name.startswith(('N', 'O')):
                     f_invalids += 1 * peso
     
-        ratio_density = len(vecinos_6A) / (len(vecinos_10A) + 1)
+        ratio_density = len(neighbor_6A) / (len(neighbor_10A) + 1)
         hydro_norm = f_hydro / (density_6A + 1)
         charge_norm = f_charge / (density_6A + 1)
         polar_norm = f_polar / (density_6A + 1)
@@ -198,21 +183,21 @@ def procesar_sample(pdbfile, ligand_file):
         hydro_polar_ratio = f_hydro / (f_polar + 1)
     
         unique_residues = len(set([
-            lista_atomos[idx].get_parent().get_resname()
-            for idx in vecinos_6A
+            list_atoms[idx].get_parent().get_resname()
+            for idx in neighbor_6A
         ]))
 
         if density_6A > 0:
             bfactor_var = np.var([
-                lista_atomos[idx].get_bfactor()
-                for idx in vecinos_6A
+                list_atoms[idx].get_bfactor()
+                for idx in neighbor_6A
             ])
         else:
             bfactor_var = 0
     
-        # Guardar todos los resultados en una fila
-        fila = {
-            'protrusion': len(vecinos_10A),                
+        # Save descriptors
+        row = {
+            'protrusion': len(neighbor_10A),                
             'bfactor': bfactor_norm,
             'Invalids': f_invalids,
             'Aromatic': f_aromatic,
@@ -225,26 +210,22 @@ def procesar_sample(pdbfile, ligand_file):
             'unique_residues': unique_residues
         }
 
-        data_rows.append(fila)
+        data_rows.append(row)
 
-    # 10. Convertir a DataFrame y guardar
+    # Transform to DataFrame
     df = pd.DataFrame(data_rows)
 
-    # 2. Añadimos la columna de etiquetas (0 o 1)
+    # Assign Labels (0 or 1)
     df['target'] = target  
     df['pdb_id'] = pdbfile
 
-    
-    # 3. Guardamos el archivo final
     return df
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-    #Coger el archivo que queremos predecir desde la command line
         file_pdb = sys.argv[1]
         ligand_file = sys.argv[2]
-        print("Usar procesar_sample desde otro script")
-        procesar_sample(file_pdb, ligand_file)
+        process_sample(file_pdb, ligand_file)
     else:
         print("Error: no file provided")

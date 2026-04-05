@@ -31,7 +31,6 @@ def generate_dataset(
     
     #Load samples
     df_samples = pd.read_csv(samples_csv)
-
     if max_samples:
         df_samples = df_samples.iloc[:max_samples]
 
@@ -45,11 +44,8 @@ def generate_dataset(
         pdb_id = row["pdb_id"]
         protein_path = row["protein_path"]
         ligand_path = row["ligand_path"]
-        #pocket_path = row["pocket_path"]
-
         print(f"[{i+1}/{len(df_samples)}] Processing {pdb_id}")
 
-    
         # PROCESS SAMPLE
         df = grid.process_sample(protein_path, ligand_path) # optionally add pocket_path
 
@@ -75,7 +71,7 @@ def generate_dataset(
         #Combine balanced dataset
         df_balanced = pd.concat([df_positive, df_negative_sampled])
 
-        # Write to CSV (append mode after the first write)
+        # Write to CSV 
         if first_write:
             df_balanced.to_csv(output_csv, index=False)
             first_write = False
