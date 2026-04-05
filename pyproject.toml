@@ -24,3 +24,6 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["python_project*"]
+
+[tool.setuptools.package-data]
+"python_project" = ["*.pkl"]

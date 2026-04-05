@@ -9,9 +9,10 @@ We recommend creating a virtual environment for the installation of the project:
     python -m venv binding_prediction
     source binding_prediction/bin/activate
 
-**Install** the dependencies: pip install ligand_binding_prediction_upf-0.1.0.tar.gz
+**Install the dependencies**: the project can be directly installed from the distributed source file, which is in the dist/ directory:
+    pip install dist/ligand_binding_prediction_upf-0.1.0.tar.gz
 
-**Execute** the program: python -m python_project.inferencia2 path/to/your_protein.pdb
+**Execute the program**: python -m python_project.inferencia2 path/your_protein.pdb
 
 **Outputs:** The program generates two files:
 
@@ -19,7 +20,9 @@ We recommend creating a virtual environment for the installation of the project:
 
     *_visualization.pml: A script to visualize the predicted pocket in PyMOL.
 
-To replicate the results analysis presented, please open the Jupyter Notebook binding_site_evaluation, located in the tests/ directory.
+## Analysis of Examples
+To replicate the results analysis presented, please open the Jupyter Notebook located in the tests/ directory: tests/binding_site_evaluation.ipynb.
+    
 
 ## Theory 
 ### Introduction
