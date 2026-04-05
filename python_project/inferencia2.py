@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 from Bio.PDB import PDBParser
-from grid import PROPERTIES
+from python_project.grid import PROPERTIES
 import joblib
 import sys
 import os
@@ -108,8 +108,8 @@ def calcular_features(pdbfile):
                 dist = np.linalg.norm(punto - atomo.get_coord())
                 peso = 1 / (dist + 0.5)
 
-                if res_name in PROPIEDADES:
-                    props = PROPIEDADES[res_name]
+                if res_name in PROPERTIES:
+                    props = PROPERTIES[res_name]
                     f_hydro += props['hydro'] * peso
                     f_aromatic += props['aromatic'] * peso
                     f_bfactor += atomo.get_bfactor() * peso
@@ -324,12 +324,15 @@ def predecir_binding_site(pdbfile):
     # Cargar modelo
     try:
         # Cargar modelo
-        if not os.path.exists("modelo_rf_predictor.pkl"):
-            raise FileNotFoundError("File 'modelo_rf_predictor.pkl' doesn't exist in directory.")
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        MODEL_PATH = os.path.join(BASE_DIR, "modelo_rf_predictor.pkl")
+
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(f"Model not found in {MODEL_PATH}.")
         
         logging.info(f"Cargando modelo 'modelo_rf_predictor.pkl' y procesando: {pdbfile}")
         print("\nCargando modelo: modelo_rf_predictor.pkl")
-        modelo = joblib.load("modelo_rf_predictor.pkl")
+        modelo = joblib.load(MODEL_PATH)
 
         # Calcular features
         print(f"\nCalculando features SAS para: {pdbfile}")

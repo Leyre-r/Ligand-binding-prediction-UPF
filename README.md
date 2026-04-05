@@ -1,13 +1,25 @@
 # Ligand binding prediction
-This repository contains the Ligand Binding Prediction project developed during our Introduction to Python and Structural Bioinformatics course (MSc Bioinformatics for Health Sciences, UPF/UB).
+This repository contains the **Ligand Binding Prediction** project, a Machine Learning pipeline designed to identify protein binding sites using geometric and physicochemical surface descriptors. 
+
+Developed as part of *Introduction to Python* and *Structural Bioinformatics* courses (MSc Bioinformatics for Health Sciences, UPF/UB).
 
 ## Tutorial
 
-Install dependencies: pip install Ligand-binding-prediction-0.1.0.tar.gz
+We recommend creating a virtual environment for the installation of the project:
+    python -m venv binding_prediction
+    source binding_prediction/bin/activate
 
-Prepare the PDB file: Move the PDB file (<protein.pdb>) into the program folder.
+**Install** the dependencies: pip install ligand_binding_prediction_upf-0.1.0.tar.gz
 
-Execute the program: python inferencia2.py <protein.pdb>
+**Execute** the program: python -m python_project.inferencia2 path/to/your_protein.pdb
+
+**Outputs:** The program generates two files:
+
+    *_binding_site_residues.txt: A list of predicted amino acids.
+
+    *_visualization.pml: A script to visualize the predicted pocket in PyMOL.
+
+To replicate the results analysis presented, please open the Jupyter Notebook binding_site_evaluation, located in the tests/ directory.
 
 ## Theory 
 ### Introduction

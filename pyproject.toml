@@ -3,8 +3,12 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Ligand-binding-prediction"
+name = "Ligand-binding-prediction-UPF"
 version = "0.1.0"
+description = "Machine Learning pipeline for protein binding site prediction using geometric and physicochemical descriptors."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{name = "Júlia Conchillo and Leyre Roca"}]
 dependencies = [
     "biopython>=1.86",
     "scikit-learn>=1.8.0",
@@ -13,12 +17,10 @@ dependencies = [
     "scipy>=1.17.1",
     "matplotlib>=3.10.8",
     "seaborn>=0.13.2",
-    "sklearn>=", # ME SALE QUE NO TENGO sklearn 
     "joblib>=1.5.3",   
-    "random>=",  # TAMPOCO TENGO ESTE
     "rdkit>=2025.9.6"
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["Ligand-binding-prediction*"]
+include = ["python_project*"]
