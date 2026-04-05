@@ -1,5 +1,5 @@
 """
-obtener_prots.py
+obtaining_proteins.py
 ------------------------
 Module for parsing the PDBbind dataset and selecting valid protein-ligand samples.
 
@@ -11,7 +11,7 @@ import os
 import pandas as pd
 import random
 
-def encontrar_archivos_sample(sample_path):
+def find_sample_files(sample_path):
     """
     Selects the PDB files from PDBbind to be used for the training of the model.
 
@@ -25,26 +25,26 @@ def encontrar_archivos_sample(sample_path):
         - pocket (str): Path to the PDBbind _pocket.pdb file. 
         None if the file is not found
     """
-    protein = None
-    ligand = None
-    pocket = None
+    protein_path = None
+    ligand_path = None
+    pocket_path = None
 
-    for f in os.listdir(sample_path):
-        f_lower = f.lower()
+    for filename in os.listdir(sample_path):
+        filename_lower = filename.lower()
 
-        if "protein.pdb" in f_lower:
-            protein = os.path.join(sample_path, f)
+        if "protein.pdb" in filename_lower:
+            protein_path = os.path.join(sample_path, filename)
 
-        elif "ligand.sdf" in f_lower:
-            ligand = os.path.join(sample_path, f)
+        elif "ligand.sdf" in filename_lower:
+            ligand_path = os.path.join(sample_path, filename)
 
-        elif "pocket.pdb" in f_lower:
-            pocket = os.path.join(sample_path, f)
+        elif "pocket.pdb" in filename_lower:
+            pocket_path = os.path.join(sample_path, filename)
 
-    return protein, ligand, pocket
+    return protein_path, ligand_path, pocket_path
 
 
-def obtener_prots_definitivo(
+def build_cleam_dataset(
     root_dir,
     output_csv="samples.csv",
     min_protein_size_kb=50,
@@ -73,34 +73,35 @@ def obtener_prots_definitivo(
     total_folders = 0
 
     for era in os.listdir(root_dir):
-        ruta_era = os.path.join(root_dir, era)
+        era_path = os.path.join(root_dir, era)
 
-        if not os.path.isdir(ruta_era):
+        #Skip non-directory entries
+        if not os.path.isdir(era_path):
             continue
 
-        print(f"Exploring folder: {era}")
+        print(f"Scanning directory: {era}")
 
-        for pdb_id in os.listdir(ruta_era):
-            sample_path = os.path.join(ruta_era, pdb_id)
-
+        for pdb_id in os.listdir(era_path):
+            sample_path = os.path.join(era_path, pdb_id)
+            #Skip non-directory entries
             if not os.path.isdir(sample_path):
                 continue
 
             total_folders += 1
 
-            protein, ligand, pocket = encontrar_archivos_sample(sample_path)
+            protein, ligand, pocket = find_sample_files(sample_path)
 
           
             # FILTERS
-            # 1. deben existir protein y ligand
+            # Protein and ligand must exist
             if protein is None or ligand is None:
                 continue
 
-            # 2. tamaño mínimo proteína
+            # Enforce minimum protein size
             if os.path.getsize(protein) < min_protein_size_kb * 1024:
                 continue
 
-            # 3. opcional: requerir pocket
+            # Reqiuire pocket file if specified
             if require_pocket and pocket is None:
                 continue
 
@@ -112,34 +113,34 @@ def obtener_prots_definitivo(
             })
 
     print(f"\nTotal folders analyzed: {total_folders}")
-    print(f"Found valid samples: {len(samples)}")
+    print(f"Valid samples found: {len(samples)}")
 
     # OPTIONAL SAMPLING
-
-    # ────────────────
-    # SAMPLING OPCIONAL
-    # ────────────────
     df = pd.DataFrame(samples)
-    df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
+    #Shuffle the dataset
+    df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
+    
+    #Subsample if requested
     if sample_size is not None and len(df) > sample_size:
         df = df.sample(n=sample_size, random_state=seed).reset_index(drop=True)
-        print(f"Submuestreo aplicado: {len(df)} samples")
+        print(f"Subsampling applied: {len(df)} samples")
     
+    #Save to CSV
     df.to_csv(output_csv, index=False)
-    print(f"\nCSV saved in: {output_csv}")
+    print(f"\nCSV saved to: {output_csv}")
 
     return df
 
-
+# Execution
 if __name__ == "__main__":
     dataset_path = "P-L"  
 
-    df = obtener_prots_definitivo(
+    df = build_cleam_dataset(
         root_dir=dataset_path,
         output_csv="samples.csv",
         min_protein_size_kb=50,
-        require_pocket=False,   # True si quieres usarlo más adelante
-        sample_size=200,       
+        require_pocket=False,   # Set to True if you want to only include samples with pocket files
+        sample_size=200,        # Set to None to include all valid samples, or specify a number for random sampling
         seed=42
     )
