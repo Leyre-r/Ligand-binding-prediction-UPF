@@ -64,13 +64,27 @@ We have defined the protrusion descriptor as the number of protein atoms within 
 
 ### Computational Approach
 
-The difficulty lies in developing procedures that are generally applicable for the identification of binding pockets, across all protein binding sites, as these sites vary in the relative importance of the different interactions contributing to binding (Henrich et al., 2010). Precisely, since it is unknow which interaction will be the most important for a specific protein, we have used a Random Forest Model. This model allows us to capture non-linear relationships between descriptors, without assuming that one descriptor is more important than another.
+The difficulty lies in developing procedures that are generally applicable for the identification of binding pockets, across all protein binding sites, as these sites vary in the relative importance of the different interactions contributing to binding (Henrich et al., 2010). Precisely, since it is unknown which interaction will be the most important for a specific protein, we have used a Random Forest Model. This model allows us to capture non-linear relationships between descriptors, without assuming that one descriptor is more important than another.
 
-To address the challenge of developing more generalizable procedures, we have chosen a grid-based method: discretizing the protein into a 3D grid and analyzing the environment of each grid point found in the Solvent Accessible Surface (SAS). For our project we have generated a grid that encapsulates the protein and we have selected the SAS points of that grid filtering by the points that were a una distancia de entre 2.8 and 3.5 Ångströms from the nearest atom. 
+To address the challenge of developing more generalizable procedures, we have chosen a grid-based method: discretizing the protein into a 3D grid and analyzing the environment of each grid point found in the Solvent Accessible Surface (SAS). For our approach, we generated a grid enclosing the protein and selected the SAS points by filtering those located at a distance between 2.8 and 3.5 Å from the nearest atom.
 
 Next, we calculated feature descriptors for those SAS points, taking into account the properties of the protein atoms surrounding them at distances of 6.0 and 10.0 Ångströms. Each atom's contribution was weighted based on its distance to the SAS point. The feature descriptors selected are an approximation of the top features described by P2Rank (Krivák & Hoksza, 2018).
 
-This process was followed by a prediction of the ligandability score of each SAS point using a previously trained Random Forest model. Finally, we selected the amino acids whose probability of being part of a ligand binding site exceeded a 0.5 threshold. 
+This process was followed by a prediction of the ligandability score of each SAS point using a previously trained Random Forest model. While a standard approach would classify points using a fixed probability threshold (e.g., 0.5), this strategy does not account for the spatial nature of binding sites, which are known to form coherent surface regions rather than isolated points (Guilloux et al., 2009; Weisel et al., 2007).
+
+To address this limitation, we implemented a spatial post-processing strategy that incorporates neighborhood information into the predictions.
+
+First, a spatial smoothing step is applied. For each SAS point, its probability is replaced by the average probability of its neighboring points within a 4.0 Å radius. This reduces isolated noisy predictions and promotes spatial consistency.
+
+Next, a local density measure is computed for each point by counting the number of neighboring SAS points within a 6.0 Å radius. This captures the idea that true binding sites tend to form dense clusters rather than isolated points (Guilloux et al., 2009).
+
+These two signals are then combined into a final score:
+- 80% weight: smoothed probability (model confidence)
+- 20% weight: normalized local density (spatial support)
+
+Finally, instead of using a fixed probability threshold, we apply an adaptive percentile-based threshold. For each protein, only the top-scoring SAS points (above the 94th percentile) are selected as binding-site candidates.
+
+This approach allows the method to adapt to different proteins and improves robustness by prioritizing spatially coherent regions over isolated high-confidence predictions.
 
 ### Bibliography
 
@@ -87,6 +101,10 @@ Pace, C. N., Grimsley, G. R., & Scholtz, J. M. (2009). Protein ionizable groups:
 Soga S, Shirai H, Kobori M, Hirayama N. 2007. Use of amino acid composition to predict ligand-binding sites. J. Chem. Inf. Model. 47: 400–406. https://doi.org/10.1021/ci6002202 
 
 Stank, A., Kokh, D. B., Fuller, J. C., & Wade, R. C. (2016). Protein binding pocket dynamics. Accounts of Chemical Research, 49(5), 809–815. https://pubs.acs.org/doi/10.1021/acs.accounts.5b00516 
+
+Guilloux, V. L., Schmidtke, P., & Tuffery, P. (2009). Fpocket: An open source platform for ligand pocket detection. BMC Bioinformatics, 10(1), 168. https://doi.org/10.1186/1471-2105-10-168
+
+Weisel, M., Proschak, E., & Schneider, G. (2007). PocketPicker: analysis of ligand binding-sites with shape descriptors. Chemistry Central Journal, 1(1), 7. https://doi.org/10.1186/1752-153x-1-7
 
 
 
