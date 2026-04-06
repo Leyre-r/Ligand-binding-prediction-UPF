@@ -5,14 +5,15 @@ Developed as part of *Introduction to Python* and *Structural Bioinformatics* co
 
 ## Tutorial
 
-We recommend creating a virtual environment for the installation of the project:
+We recommend **creating a virtual environment** for the installation of the project:
     python -m venv binding_prediction
     source binding_prediction/bin/activate
 
 **Install the dependencies**: the project can be directly installed from the distributed source file, which is in the dist/ directory:
     pip install dist/ligand_binding_prediction_upf-0.1.0.tar.gz
 
-**Execute the program**: python -m python_project.inferencia2 path/your_protein.pdb
+**Execution**: Once installed, you can run the program from any directory (e.g., from a folder containing your PDB files), provided the virtual environment is active:
+    python -m python_project.inference path/your_protein.pdb
 
 **Outputs:** The program generates two files:
 
